@@ -1,10 +1,10 @@
 ---
-title: "MCMG Simulation Project Glossary of Terms"
+title: "MCMG Simulation Platform: Complete Glossary of Terms"
 sidebarTitle: "Glossary"
 description: "Definitions of all key terms and concepts used in the MCMG simulation project, from agent and entity to scenario, fidelity, and timestep."
 ---
 
-This glossary defines the key terms and concepts you will encounter throughout MCMG documentation, configuration files, and team communications. Terms are organised alphabetically into letter-range sections. Where a term is closely related to another defined term, cross-references are provided. Becoming familiar with this vocabulary will help you read configuration references and output documentation accurately and communicate clearly with other project contributors.
+This glossary defines the key terms and concepts you will encounter throughout MCMG documentation, configuration files, and scenario definitions. Terms are organised alphabetically into letter-range sections. Where a term is closely related to another defined term, cross-references are provided. Becoming familiar with this vocabulary will help you read configuration references and output documentation accurately and use the platform with confidence.
 
 <Accordion title="A – C">
 
@@ -76,8 +76,8 @@ A parameter defined at the top level of the parameter hierarchy that applies acr
 **Initial State**
 The complete description of the simulation world at simulation time `0.0`, before any events are processed. The initial state includes the set of entities, their starting attribute values, and any pre-scheduled events. It may be generated procedurally from the scenario definition or loaded from a saved state snapshot.
 
-**Integration Test**
-A test that exercises multiple components of the simulation pipeline together — typically loading a scenario, running it for a short duration, and verifying that outputs match expected values. Integration tests are distinct from unit tests (which test individual behaviours or functions in isolation) and from validation runs (which assess model accuracy against reference data).
+**Interaction Model**
+The strategy used to resolve how entities detect and respond to one another during a simulation run. MCMG supports three built-in interaction models: `pairwise` (every pair of entities within interaction radius is checked explicitly), `neighbourhood` (spatial partitioning is used to limit checks to nearby entities), and `broadcast` (all entities are notified simultaneously of relevant events). The model is selected via the `scenario.interaction_model` parameter and can significantly affect both output fidelity and run performance.
 
 **Lifecycle**
 The set of states an entity can occupy from creation to destruction, and the rules that govern transitions between those states. The standard lifecycle states are `spawning`, `active`, `dormant`, and `destroying`. Custom lifecycle modes may define additional states. The default lifecycle mode for new entities is set by `global.default_lifecycle`.
@@ -101,8 +101,8 @@ A named, typed value that is passed into entity logic, behaviour rules, and even
 **Parameter Sweep**
 A systematic exploration of the simulation's behaviour across a range of parameter values. In a parameter sweep, you run the same scenario multiple times, varying one or more parameters between runs, and compare the outputs to understand how sensitive the model is to those parameters. Parameter sweeps are typically executed as batch runs. See also: **Batch Run**.
 
-**Peer Review**
-The structured process by which a scenario definition, model change, or analysis result is examined by at least one other qualified contributor before it is accepted into the project. Peer review is a quality gate that helps catch errors in model logic, parameter choices, and result interpretation before they propagate into downstream work.
+**Procedural Generation**
+The automatic creation of initial simulation state — entity positions, attribute values, and pre-scheduled events — from a set of rules and a seed rather than from a hand-authored state file. Procedural generation allows large, varied initial populations to be produced consistently and reproducibly. It is the default mode when `scenario.initial_state_file` is left empty. The same seed always produces the same procedurally generated state, supporting deterministic reruns.
 
 </Accordion>
 

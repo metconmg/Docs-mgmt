@@ -81,7 +81,7 @@ MCMG resolves concurrency through a three-level ordering system applied within a
     Events are sorted by their assigned priority integer. Lower numbers are dispatched first. This is the primary ordering mechanism and should handle most cases.
   </Step>
   <Step title="Type-based tie-breaking">
-    If two events have identical priority, their types are compared using a globally registered type ordering table. This table is defined once at platform level and applies consistently across all scenarios.
+    If two events have identical priority, their types are compared using a deterministic type ordering that is consistent across all scenarios. The ordering is fixed for a given engine version and applies uniformly, so the same pair of event types will always resolve in the same order regardless of which scenario or run produces them.
   </Step>
   <Step title="Source ID tie-breaking">
     If priority and type are both identical, the engine uses the source entity's identifier as a final tiebreaker. Because identifiers are deterministic (assigned in spawn order), this produces a consistent ordering across all replications with the same scenario.

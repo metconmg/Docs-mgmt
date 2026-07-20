@@ -1,5 +1,5 @@
 ---
-title: "Simulation Parameter Reference and Default Values"
+title: "MCMG Simulation Parameters: Types, Defaults, and Ranges"
 sidebarTitle: "Parameters"
 description: "Reference listing of all MCMG simulation parameters, their types, default values, valid ranges, and guidance on when to override the defaults."
 ---
@@ -104,7 +104,7 @@ Use the `--param` flag (or its environment-variable equivalent `MCMG_PARAM_<NAME
 ```bash
 # Override seed and fidelity for a single trial
 mcmg run --config ./scenarios/baseline.yaml \
-         --param run.seed_override=99 \
+         --param run.seed_override=42 \
          --param run.fidelity_override=high
 ```
 

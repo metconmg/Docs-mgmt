@@ -1,7 +1,7 @@
 ---
-title: "Naming Conventions for Simulation Artifacts"
+title: "MCMG Simulation Artifact Naming Conventions"
 sidebarTitle: "Naming Conventions"
-description: "The official MCMG naming conventions for scenarios, entities, events, parameters, and output files — ensuring consistency across the project."
+description: "Official MCMG naming conventions for scenarios, entities, events, parameters, and output files — ensuring consistency and discoverability across the project."
 ---
 
 Consistent naming is the foundation of a maintainable simulation project. When every artifact follows a shared convention, contributors can locate files, understand intent, and avoid collisions without needing to ask anyone. This page defines the official MCMG naming conventions for all simulation artifacts — scenarios, entity types, events, parameters, and output files. Treat these rules as mandatory, not advisory.
@@ -15,7 +15,7 @@ Before diving into category-specific rules, internalize these project-wide princ
     A name should communicate its purpose immediately. Prefer a longer, readable name over a terse one that requires context to decode.
   </Card>
   <Card title="Global Uniqueness" icon="fingerprint">
-    No two artifacts of the same type may share a name, even across domains. Duplicate names cause merge conflicts, confusion in logs, and broken cross-references.
+    No two artifacts of the same type may share a name, even across domains. Duplicate names cause confusion in logs and broken cross-references.
   </Card>
   <Card title="Approved Abbreviations Only" icon="list-check">
     Do not invent abbreviations. Use the full word unless the abbreviation appears on the project-maintained Approved Abbreviations List (AAL). When in doubt, spell it out.
@@ -23,7 +23,7 @@ Before diving into category-specific rules, internalize these project-wide princ
 </CardGroup>
 
 <Note>
-  The Approved Abbreviations List is maintained in the project wiki and is updated quarterly. Propose new abbreviations through the standard review process before using them in artifact names.
+  The Approved Abbreviations List is maintained by the project and updated quarterly. Propose new abbreviations through the standard review process before using them in artifact names.
 </Note>
 
 ---
@@ -146,7 +146,7 @@ All files — scenario definitions, entity specs, parameter sets, output logs, a
 | `run-output-20241105.output.json` | `output.json` | No date; no descriptor |
 
 <Warning>
-  Never include spaces, special characters (`@`, `#`, `!`, `$`), or uppercase letters in file names. The simulation pipeline is case-sensitive and will fail to resolve files that do not match their registered names exactly.
+  Never include spaces, special characters (`@`, `#`, `!`, `$`), or uppercase letters in file names. The simulation engine is case-sensitive and will fail to resolve files that do not match their registered names exactly.
 </Warning>
 
 ---
@@ -173,7 +173,7 @@ Version suffixes appear in scenario names, parameter filenames, and entity defin
 Avoid these patterns. They have appeared in the project history and caused real problems.
 
 <Warning>
-  The following naming patterns are explicitly banned. Pull requests that introduce these patterns will be rejected at the review stage.
+  The following naming patterns are explicitly banned. Artifacts that introduce these patterns will be rejected at the review stage.
 </Warning>
 
 | Anti-Pattern | Example | Problem |

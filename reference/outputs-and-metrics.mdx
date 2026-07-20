@@ -1,5 +1,5 @@
 ---
-title: "Simulation Outputs, Logs, and Metrics Reference"
+title: "MCMG Simulation Outputs, Logs, and Metrics Reference"
 sidebarTitle: "Outputs & Metrics"
 description: "Reference for all MCMG simulation outputs including event logs, state snapshots, summary metrics, and how to interpret and export each format."
 ---
@@ -87,7 +87,7 @@ Where `<run_id>` is the unique identifier for the run, `<N>` is a zero-padded se
     "distance": 0.82,
     "duration_estimate": 3.0
   },
-  "run_id": "run_20240815_001"
+  "run_id": "run_baseline_001"
 }
 ```
 
@@ -265,11 +265,11 @@ All output filenames follow a consistent pattern to support automated processing
 ```
 
 - **`<type>`**: One of `events`, `snapshot`, `summary`, `errors`.
-- **`<run_id>`**: The unique run identifier (e.g., `run_20240815_001`).
+- **`<run_id>`**: The unique run identifier (e.g., `run_baseline_001`).
 - **`<qualifier>`**: Optional segment providing additional context, such as a timestamp for snapshots or a part number for rotated event logs.
 - **`<format>`**: File extension matching the output format (`jsonl`, `csv`, `parquet`, `json`, `yaml`, or `txt`).
 
-Run identifiers are generated from the real-world date, an incrementing counter, and the scenario name hash, ensuring lexicographic sort order matches chronological order when runs share the same date prefix.
+Run identifiers are unique strings assigned to each execution. Their format ensures that lexicographic sort order matches chronological order, making it straightforward to list and compare runs in sequence.
 
 ---
 
@@ -285,7 +285,7 @@ Most data processing environments can read JSONL directly:
 import json
 
 records = []
-with open("output/events/events_run_20240815_001_part0.jsonl") as fh:
+with open("output/events/events_run_baseline_001_part0.jsonl") as fh:
     for line in fh:
         records.append(json.loads(line))
 ```

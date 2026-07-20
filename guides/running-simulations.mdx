@@ -1,5 +1,5 @@
 ---
-title: "Run MCMG Simulations and Manage Execution"
+title: "Run MCMG Simulations and Manage Your Execution Workflow"
 sidebarTitle: "Running Simulations"
 description: "Learn how to execute MCMG simulation runs, manage configuration overrides, monitor progress, and retrieve results when the run completes."
 ---
@@ -43,7 +43,7 @@ Batch and sweep modes can generate large volumes of output data quickly. Before 
     The CLI prints a run ID immediately after submission. Record this ID — you will use it to monitor progress and retrieve outputs.
 
     ```
-    Run submitted: run-20240315-a3f7c2
+    Run submitted: run-a1b2c3d4
     Mode: single
     Scenario: my-scenario-name
     Parameters: default
@@ -138,7 +138,7 @@ When multiple sources provide the same parameter, MCMG applies values in this or
 Once a run is in the `running` state, you can stream its log output to your terminal:
 
 ```bash
-mcmg logs --run run-20240315-a3f7c2 --follow
+mcmg logs --run run-a1b2c3d4 --follow
 ```
 
 Log lines are prefixed with a timestamp and a severity level. Look for `ERROR` and `WARN` lines — they signal problems that may invalidate the run's outputs.
@@ -156,11 +156,11 @@ Log lines are prefixed with a timestamp and a severity level. Look for `ERROR` a
 Use the `status` command for a structured snapshot of run progress without the full log stream:
 
 ```bash
-mcmg status --run run-20240315-a3f7c2
+mcmg status --run run-a1b2c3d4
 ```
 
 ```
-Run ID:      run-20240315-a3f7c2
+Run ID:      run-a1b2c3d4
 Scenario:    my-scenario-name
 Status:      running
 Progress:    1247 / 3600 steps (34.6%)
@@ -187,7 +187,7 @@ mcmg status --scenario my-scenario-name --all
     Pausing writes a checkpoint to disk and suspends execution. The run enters a `paused` state and consumes no compute resources while paused.
 
     ```bash
-    mcmg pause --run run-20240315-a3f7c2
+    mcmg pause --run run-a1b2c3d4
     ```
   </Step>
 
@@ -195,7 +195,7 @@ mcmg status --scenario my-scenario-name --all
     Resuming picks up execution from the most recent checkpoint. No steps are repeated.
 
     ```bash
-    mcmg resume --run run-20240315-a3f7c2
+    mcmg resume --run run-a1b2c3d4
     ```
   </Step>
 
@@ -203,7 +203,7 @@ mcmg status --scenario my-scenario-name --all
     Cancelling terminates the run immediately and marks it as `cancelled`. Any outputs produced up to the point of cancellation remain on disk but are flagged as incomplete in the run metadata.
 
     ```bash
-    mcmg cancel --run run-20240315-a3f7c2
+    mcmg cancel --run run-a1b2c3d4
     ```
   </Step>
 </Steps>
@@ -219,7 +219,7 @@ Cancelling a run that is in the middle of writing a snapshot or metrics file may
 When a run reaches `completed` status, its output files are written to `outputs/<run-id>/` relative to your working directory (or the output path configured in your tooling config).
 
 ```
-outputs/run-20240315-a3f7c2/
+outputs/run-a1b2c3d4/
 ├── metadata.json          # Run configuration, timestamps, status, and parameter values used
 ├── logs/
 │   └── run.log            # Full execution log
@@ -235,7 +235,7 @@ outputs/run-20240315-a3f7c2/
 To print the exact output path for a given run:
 
 ```bash
-mcmg output-path --run run-20240315-a3f7c2
+mcmg output-path --run run-a1b2c3d4
 ```
 
 <Tip>

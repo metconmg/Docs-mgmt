@@ -1,5 +1,5 @@
 ---
-title: "Simulation Configuration Reference"
+title: "MCMG Simulation Configuration Reference and Settings"
 sidebarTitle: "Configuration"
 description: "Complete reference for MCMG simulation configuration files, covering scenario settings, engine options, logging, and output configuration."
 ---
@@ -119,7 +119,7 @@ The output section determines where simulation results are written and in what f
 </ParamField>
 
 <ParamField path="output.formats" type="array" default='["jsonl", "csv"]'>
-  List of formats in which event logs and state snapshots are written. Supported values are `jsonl`, `csv`, and `parquet`. You may list multiple formats; the engine writes one file per format per output type. Using `parquet` requires the optional analytics extension to be installed.
+  List of formats in which event logs and state snapshots are written. Supported values are `jsonl`, `csv`, and `parquet`. You may list multiple formats; the engine writes one file per format per output type. Parquet output requires the columnar output feature to be enabled in your installation.
 </ParamField>
 
 <ParamField path="output.snapshot_interval" type="number" default="10.0">
@@ -152,7 +152,7 @@ scenario:
     Baseline scenario for the urban grid model.
     Represents a standard weekday morning peak
     with default population density and no interventions.
-  seed: 20240815
+  seed: 98765
   duration: 480.0        # 480 STUs = 8 simulated hours
   fidelity: medium
 

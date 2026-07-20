@@ -1,7 +1,7 @@
 ---
 title: "Set Up Your MCMG Simulation Development Environment"
 sidebarTitle: "Environment Setup"
-description: "Configure your local development environment for MCMG simulation work, including required tools, project access, directory structure, and initial validation."
+description: "Configure your local development environment for MCMG simulation work, including required tools, project access, directory structure, and validation."
 ---
 
 Setting up a consistent, well-configured development environment is the foundation of productive simulation work. Before you write your first scenario or execute your first run, you need to confirm that your machine meets the hardware and software requirements, that you have access to the necessary repositories and documentation, and that the directory layout you work within matches the conventions the rest of the team uses. This guide walks you through every step of that process and helps you diagnose the most common setup problems before they slow you down.
@@ -48,7 +48,7 @@ Install and verify each of the following before proceeding:
 | The MCMG CLI | Primary interface for launching and managing simulations |
 
 <Tip>
-Use your operating system's package manager to install the runtime dependencies, then follow your team's internal guide to install the MCMG CLI from the internal artifact registry. Pin the CLI version in your project notes so you can reproduce behavior after updates.
+Use your operating system's package manager to install the runtime dependencies, then follow your team's setup guide to install the MCMG CLI. Pin the CLI version in your project notes so you can reproduce behavior after updates.
 </Tip>
 
 ---
@@ -75,10 +75,10 @@ Access to MCMG simulation resources is controlled through your organization's id
   </Step>
 
   <Step title="Clone the primary scenario repository">
-    Once your credentials are configured, clone the repository to your local machine.
+    Once your credentials are configured, clone the repository to your local machine. Use the repository URL provided in your project onboarding materials.
 
     ```bash
-    git clone git@internal-git-host:mcmg/scenarios.git
+    git clone <scenario-repository-url>
     cd scenarios
     ```
   </Step>
@@ -87,8 +87,8 @@ Access to MCMG simulation resources is controlled through your organization's id
     Depending on your role, you may also need the entity library repository and the tooling scripts repository. Clone each into a sibling directory of the scenarios repository to match the expected relative paths used by the tooling.
 
     ```bash
-    git clone git@internal-git-host:mcmg/entity-library.git
-    git clone git@internal-git-host:mcmg/tooling.git
+    git clone <entity-library-repository-url>
+    git clone <tooling-repository-url>
     ```
   </Step>
 
@@ -130,7 +130,7 @@ mcmg/
 ```
 
 <Note>
-The `outputs/` directory is excluded from version control via `.gitignore`. Never commit run outputs to the repository. If you need to share a specific run's output with a colleague, use the internal object storage system.
+The `outputs/` directory is excluded from version control via `.gitignore`. Never commit run outputs to the repository. If you need to share a specific run's output with a colleague, use your team's designated file-sharing mechanism.
 </Note>
 
 ### Key conventions
@@ -200,5 +200,5 @@ Even with careful setup, a few problems come up repeatedly. The table below cove
 | WSL 2 file operations are very slow | Files are stored on the Windows filesystem (under `/mnt/c`) | Move your cloned repositories into the WSL 2 native filesystem (e.g., `~/mcmg/`) |
 
 <Tip>
-If you encounter a problem not listed here, check the team's internal discussion channel for the simulation project. Most environment issues have already been solved by a colleague and documented in pinned messages or a shared troubleshooting note.
+If you encounter a problem not listed here, check your team's shared documentation or ask in your project's communication channel. Most environment issues have already been solved by a colleague and documented in a shared troubleshooting note.
 </Tip>

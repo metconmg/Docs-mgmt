@@ -14,7 +14,7 @@ MCMG organizes simulation infrastructure into five distinct layers arranged in a
 |---|---|---|
 | **Scenario Layer** | Defines *what* is being simulated | Scenario files, parameter files, seed manifests |
 | **Entity System** | Represents all actors and their state | Entity registry, attribute stores, relationship graph |
-| **Event Bus** | Routes events between entities and the engine | Event queue, subscription registry, dispatch log |
+| **Event Bus** | Routes events between entities and the engine | Event queue, subscription table, dispatch log |
 | **Simulation Engine** | Advances simulation time and enforces causality | Clock, scheduler, synchronization coordinator |
 | **Output Layer** | Captures, aggregates, and persists results | Event logs, state snapshots, metrics streams |
 

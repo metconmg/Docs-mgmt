@@ -262,7 +262,7 @@ mcmg run \
 ```
 
 <Note>
-Distributed execution requires cluster access configured in your environment. Contact your infrastructure team to confirm that your account has the necessary permissions and that the target cluster has sufficient capacity for your sweep size before launching.
+Distributed execution requires cluster access configured in your environment. Confirm that your account has the necessary permissions and that the target cluster has sufficient capacity for your sweep size before launching a large job.
 </Note>
 
 ---
@@ -288,4 +288,4 @@ If you have applied the optimizations in this guide and your run still exceeds i
 
 1. Re-examine the scenario scope — confirm that the entity count and time horizon are genuinely necessary for the objective.
 2. Check whether the scenario can be decomposed into smaller, faster sub-scenarios whose results are combined.
-3. Escalate to your team's simulation engineering lead to review the profiling report together.
+3. Work with an experienced team member to review the profiling report together and identify deeper optimizations.
