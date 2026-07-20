@@ -1,0 +1,284 @@
+---
+title: "Run MCMG Simulations and Manage Execution"
+sidebarTitle: "Running Simulations"
+description: "Learn how to execute MCMG simulation runs, manage configuration overrides, monitor progress, and retrieve results when the run completes."
+---
+
+Executing a simulation is more than issuing a single command — it involves choosing the right run mode for your objective, understanding how to apply configuration overrides without modifying your committed scenario files, keeping an eye on the run as it proceeds, and knowing where to find your results when it finishes. This guide covers all of those topics in the order you will encounter them during a typical simulation workflow.
+
+## Run Modes
+
+MCMG supports three execution modes. Choosing the right one before you launch avoids wasted compute time and makes your results easier to interpret.
+
+| Mode | Description | When to use |
+|---|---|---|
+| `single` | Executes one run with one parameter set and one seed | Verifying scenario logic, debugging, sanity checks |
+| `batch` | Executes multiple runs, each with a different named parameter set defined in the scenario | Comparing discrete configurations against each other |
+| `sweep` | Executes a grid or sampled exploration across a continuous parameter range | Understanding how output metrics vary with a parameter value |
+
+<Note>
+Batch and sweep modes can generate large volumes of output data quickly. Before launching either mode at full scale, run a single-mode sanity check first to confirm the scenario produces sensible output.
+</Note>
+
+---
+
+## How to Launch a Simulation Run
+
+<Steps>
+  <Step title="Confirm your scenario passes validation">
+    Always validate before launching. A scenario that fails validation will be rejected at launch anyway, but catching it early saves time.
+
+    ```bash
+    mcmg validate --scenario my-scenario-name
+    ```
+
+    Validation output should show no `ERROR` lines before you proceed.
+  </Step>
+
+  <Step title="Launch a single run">
+    ```bash
+    mcmg run --scenario my-scenario-name --mode single
+    ```
+
+    The CLI prints a run ID immediately after submission. Record this ID — you will use it to monitor progress and retrieve outputs.
+
+    ```
+    Run submitted: run-20240315-a3f7c2
+    Mode: single
+    Scenario: my-scenario-name
+    Parameters: default
+    Seed: 42
+    Status: queued
+    ```
+  </Step>
+
+  <Step title="Launch a batch run">
+    ```bash
+    mcmg run --scenario my-scenario-name --mode batch
+    ```
+
+    In batch mode, the CLI reads all named parameter sets from the scenario's `params/` directory and schedules one run per set. Each run receives its own run ID.
+  </Step>
+
+  <Step title="Launch a parameter sweep">
+    ```bash
+    mcmg run \
+      --scenario my-scenario-name \
+      --mode sweep \
+      --sweep-param agent_initial_population \
+      --sweep-range 100:10000:500 \
+      --sweep-seeds 3
+    ```
+
+    The `--sweep-range` argument takes the form `min:max:step`. The `--sweep-seeds` argument specifies how many different random seeds to use at each parameter value — this gives you enough samples to distinguish signal from noise.
+  </Step>
+</Steps>
+
+---
+
+## Configuration Override Patterns
+
+You often want to run a scenario with a slightly different parameter value without modifying the committed scenario file. MCMG provides two override mechanisms: command-line flags and override files.
+
+### Command-line overrides
+
+Prefix any parameter name with `--param.` to override it inline:
+
+```bash
+mcmg run \
+  --scenario my-scenario-name \
+  --mode single \
+  --param.agent_initial_population 2000 \
+  --param.interaction_radius 10.0
+```
+
+Command-line overrides are applied on top of the selected parameter set after all file-based values have been loaded. They are recorded in the run's metadata so you can always see exactly what was used.
+
+### Override file
+
+For more complex or repeatable overrides, write a YAML file containing only the fields you want to change and pass it with `--override-file`:
+
+```bash
+mcmg run \
+  --scenario my-scenario-name \
+  --mode single \
+  --override-file /path/to/my-overrides.yaml
+```
+
+```yaml
+# my-overrides.yaml — only specify fields you want to change
+params:
+  agent_initial_population: 2000
+  interaction_radius: 10.0
+simulation:
+  seed: 99
+```
+
+<Tip>
+Use command-line overrides for quick, one-off experiments. Use override files when you want to share an exact configuration with a teammate or preserve a specific setup for later reference.
+</Tip>
+
+### Override precedence
+
+When multiple sources provide the same parameter, MCMG applies values in this order (later entries win):
+
+| Priority | Source |
+|---|---|
+| 1 (lowest) | Scenario default parameter file |
+| 2 | Named parameter set file (if `--params` flag used) |
+| 3 | Override file (if `--override-file` flag used) |
+| 4 (highest) | Individual `--param.*` command-line flags |
+
+---
+
+## Monitoring a Running Simulation
+
+### Following log output
+
+Once a run is in the `running` state, you can stream its log output to your terminal:
+
+```bash
+mcmg logs --run run-20240315-a3f7c2 --follow
+```
+
+Log lines are prefixed with a timestamp and a severity level. Look for `ERROR` and `WARN` lines — they signal problems that may invalidate the run's outputs.
+
+```
+[00:00:01] INFO  Simulation initialized. Entity count: 500
+[00:00:02] INFO  Step 1/3600 complete. Active entities: 500
+[00:00:05] INFO  Step 100/3600 complete. Active entities: 487
+[00:00:08] WARN  Entity energy_min threshold crossed for 3 entities
+[00:00:12] INFO  Step 500/3600 complete. Active entities: 461
+```
+
+### Progress indicators
+
+Use the `status` command for a structured snapshot of run progress without the full log stream:
+
+```bash
+mcmg status --run run-20240315-a3f7c2
+```
+
+```
+Run ID:      run-20240315-a3f7c2
+Scenario:    my-scenario-name
+Status:      running
+Progress:    1247 / 3600 steps (34.6%)
+Elapsed:     00:04:12
+Estimated:   00:08:02 remaining
+Entities:    461 active
+Events:      128,340 processed
+```
+
+### Watching multiple runs
+
+For batch or sweep runs, list all associated runs and their statuses together:
+
+```bash
+mcmg status --scenario my-scenario-name --all
+```
+
+---
+
+## Pausing, Resuming, and Cancelling a Run
+
+<Steps>
+  <Step title="Pause a running simulation">
+    Pausing writes a checkpoint to disk and suspends execution. The run enters a `paused` state and consumes no compute resources while paused.
+
+    ```bash
+    mcmg pause --run run-20240315-a3f7c2
+    ```
+  </Step>
+
+  <Step title="Resume a paused simulation">
+    Resuming picks up execution from the most recent checkpoint. No steps are repeated.
+
+    ```bash
+    mcmg resume --run run-20240315-a3f7c2
+    ```
+  </Step>
+
+  <Step title="Cancel a run">
+    Cancelling terminates the run immediately and marks it as `cancelled`. Any outputs produced up to the point of cancellation remain on disk but are flagged as incomplete in the run metadata.
+
+    ```bash
+    mcmg cancel --run run-20240315-a3f7c2
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+Cancelling a run that is in the middle of writing a snapshot or metrics file may produce a corrupt output file. If you need to inspect partial outputs from a cancelled run, check the run metadata for a `partial_output_warning` flag before relying on those files.
+</Warning>
+
+---
+
+## Retrieving and Locating Output Files
+
+When a run reaches `completed` status, its output files are written to `outputs/<run-id>/` relative to your working directory (or the output path configured in your tooling config).
+
+```
+outputs/run-20240315-a3f7c2/
+├── metadata.json          # Run configuration, timestamps, status, and parameter values used
+├── logs/
+│   └── run.log            # Full execution log
+├── metrics/
+│   ├── entity_count_by_type.csv
+│   ├── event_rate_per_step.csv
+│   └── state_distribution_summary.json
+└── snapshots/             # Only present if snapshots were enabled in the scenario
+    ├── step-0001.snapshot
+    └── step-3600.snapshot
+```
+
+To print the exact output path for a given run:
+
+```bash
+mcmg output-path --run run-20240315-a3f7c2
+```
+
+<Tip>
+The `metadata.json` file records the exact parameter values, override chain, seed, CLI version, and scenario commit hash used for the run. Keep this file with any results you share — it is the receipt that makes your run reproducible.
+</Tip>
+
+---
+
+## Run Lifecycle
+
+Every simulation run passes through a defined sequence of states. Understanding this lifecycle helps you interpret status output and respond to unexpected states.
+
+```
+           ┌─────────┐
+  submit   │         │
+  ────────▶│ queued  │
+           │         │
+           └────┬────┘
+                │ resources available
+                ▼
+           ┌─────────┐
+           │         │         ┌──────────┐
+           │ running │────────▶│  paused  │
+           │         │◀────────│          │
+           └────┬────┘  resume └──────────┘
+                │
+        ┌───────┴────────┐
+        │                │
+        ▼                ▼
+  ┌──────────┐     ┌──────────┐     ┌────────────┐
+  │completed │     │  failed  │     │ cancelled  │
+  └──────────┘     └──────────┘     └────────────┘
+```
+
+| State | Description |
+|---|---|
+| `queued` | Run has been accepted and is waiting for execution resources |
+| `running` | Simulation is actively executing steps |
+| `paused` | Execution is suspended at a checkpoint; can be resumed |
+| `completed` | All steps finished successfully; all output files are written and complete |
+| `failed` | Execution encountered an unrecoverable error; outputs may be partial or absent |
+| `cancelled` | Run was terminated by user request; partial outputs may exist |
+
+<Note>
+A run that ends in `failed` always writes a failure report to `outputs/<run-id>/logs/run.log`. Check that file first when diagnosing a failure — it contains the error message, the step at which failure occurred, and the state of any entities involved.
+</Note>

@@ -1,0 +1,130 @@
+---
+title: "Entities and Agents: Modeling Actors in Simulations"
+sidebarTitle: "Entities & Agents"
+description: "Learn how MCMG simulations represent real-world actors using entities and agents, including lifecycle, state, behaviors, and interaction patterns."
+---
+
+Every meaningful element in an MCMG simulation — whether it is a passive resource, an autonomous decision-maker, or a piece of infrastructure — is represented as an entity or an agent. Getting this representation right is one of the most consequential design decisions you will make. Too much detail per entity and your simulation drowns in state; too little and you lose the fidelity you need to answer your questions.
+
+## Entities vs. Agents
+
+The terms "entity" and "agent" are related but distinct in MCMG. All agents are entities, but not all entities are agents.
+
+| Concept | Has State | Has Behaviors | Makes Decisions | Examples |
+|---|---|---|---|---|
+| **Entity** | Yes | No | No | A fixed installation, a resource pool, a waypoint |
+| **Agent** | Yes | Yes | Yes | A vehicle, an operator, an autonomous system |
+
+A **static entity** exists to be referenced, measured, and affected by agents. It holds state that other components can read and write, but it does not initiate actions or respond to events on its own. Static entities are lightweight and can be instantiated in very large numbers without significant performance cost.
+
+A **behavioral agent** actively participates in the simulation. It listens for events, evaluates decision rules against its current state, and produces outputs — new events, state changes, messages to other entities. Agents are more expensive than static entities because the engine must invoke their behavior logic on every relevant event.
+
+<Tip>
+  When in doubt, start with a static entity and only promote it to a behavioral agent if you find yourself writing logic that needs the entity to act independently. Many scenarios over-use agents, which inflates event volume and runtime cost unnecessarily.
+</Tip>
+
+## Entity Anatomy
+
+Every entity in MCMG — whether static or agent — shares the same fundamental structure.
+
+<Accordion title="Identifier (ID)">
+  Each entity is assigned a globally unique identifier at spawn time. The identifier is immutable for the entity's lifetime and is used in event payloads, relationship records, output logs, and cross-references in scenario files. Identifiers follow a structured format that encodes the entity type and a sequence number, making log files human-readable without requiring a lookup table.
+</Accordion>
+
+<Accordion title="Type">
+  The entity type is declared in the scenario and maps to a registered type definition that specifies the entity's attribute schema, the behaviors it runs (if it is an agent), and the event types it can publish and subscribe to. The engine validates every entity instance against its type definition at startup.
+</Accordion>
+
+<Accordion title="State">
+  State is the mutable record associated with an entity. It is a typed key-value structure defined by the entity's type schema. State can only be written during event processing — never in read-only query paths. The engine takes a snapshot of all entity states at configured checkpoint intervals, giving you a time-series record of how each entity evolved.
+</Accordion>
+
+<Accordion title="Attributes">
+  Attributes are static or slowly-varying properties that describe an entity's characteristics: capacity, classification, physical dimensions, configuration parameters. Unlike state, attributes are set at spawn time from the scenario file and typically do not change during a run. Behaviors can read attributes but generally should not write them.
+</Accordion>
+
+<Accordion title="Relationships">
+  Relationships connect entities to other entities. The relationship graph is directed and typed — for example, an agent may have a "member-of" relationship to a group entity, or an "observes" relationship to a sensor entity. Relationships can be queried by type and direction, making it straightforward to find all members of a group or all sensors monitoring a target.
+</Accordion>
+
+## Agent Behaviors
+
+Behaviors are the decision logic that transforms an entity into an agent. Each behavior is a registered module that the engine invokes when a qualifying event is dispatched to the agent. A single agent type may carry multiple behaviors, each responding to a different event type.
+
+### Decision Rules
+
+Decision rules evaluate the agent's current state and the incoming event payload to determine what action to take. Rules are expressed as conditional logic: if a set of conditions holds, execute a set of actions. Actions can include publishing new events, modifying the agent's own state, creating or destroying relationships, or scheduling deferred events.
+
+### Triggers
+
+A trigger is a condition evaluated against the agent's state on every clock tick or on every event of a subscribed type. When a trigger fires, it activates the associated behavior. Triggers let you express time-based conditions ("after 30 simulated minutes in state X") and state-based conditions ("when attribute Y exceeds threshold Z") cleanly, without embedding polling logic inside behaviors.
+
+### State Transitions
+
+Many agents are best modeled as finite state machines. MCMG's behavior system supports explicit state machine declarations within a behavior module: you define the set of named states, the events or triggers that cause transitions between them, and the actions to execute on entry or exit. The engine enforces that the agent is always in exactly one declared state and that transitions follow the declared graph.
+
+<Note>
+  State machine declarations are optional — you can write imperative decision logic instead — but they are strongly encouraged for agents with complex lifecycles. Explicitly declared state machines are visible to validation tooling, which can check for unreachable states, missing exit paths, and transition conflicts automatically.
+</Note>
+
+## Entity Lifecycle
+
+Every entity passes through a defined lifecycle from creation to removal. The lifecycle applies equally to static entities and agents; for static entities, the active phase simply has no behavior invocations.
+
+<Steps>
+  <Step title="Spawn">
+    An entity is created by a spawn event, which is either declared in the scenario (initial population) or published by another behavior during the run (dynamic spawn). At spawn time, the entity is assigned its ID, its attributes are loaded from the spawn event payload, its initial state is set, and its relationships are established. Behaviors register their event subscriptions.
+  </Step>
+  <Step title="Active">
+    The entity participates fully in the simulation. For agents, behaviors are invoked on qualifying events. State changes, relationship updates, and event publications all occur in this phase. The entity appears in query results, can be referenced in event payloads, and generates output records.
+  </Step>
+  <Step title="Dormant">
+    An entity transitions to dormant when it should temporarily stop participating without being removed. Dormant entities retain their state and relationships but do not receive behavior invocations. This is useful for modeling standby equipment, inactive reserves, or temporarily out-of-scope actors. Dormant entities still consume state storage but generate no processing overhead.
+  </Step>
+  <Step title="Destroyed">
+    A destroy event removes the entity from the active registry. Its final state is recorded in the output layer. Relationships to the destroyed entity are invalidated. If any in-flight event refers to a destroyed entity as its target, the engine discards the event and records a warning in the dispatch log.
+  </Step>
+</Steps>
+
+<Warning>
+  Dynamically spawning large numbers of entities during a run — rather than declaring them in the initial scenario population — can create unpredictable memory growth and make runs harder to reproduce exactly. If your scenario requires dynamic spawning, set a hard cap on the total number of entities that can be alive at any one time.
+</Warning>
+
+## Interaction Patterns
+
+Agents and entities interact through three primary patterns. Understanding their trade-offs helps you choose the right mechanism for each kind of interaction in your scenario.
+
+<Tabs>
+  <Tab title="Direct Messaging">
+    One entity publishes an event addressed to a specific target entity by ID. The Event Bus delivers the event only to that target. This is the most precise interaction pattern and produces the clearest causality chain in the dispatch log.
+
+    **Use when:** An agent needs to send a specific instruction, response, or data payload to exactly one other entity. Avoid using direct messaging to implement broadcast-like communication — the overhead of sending N individual messages is higher than publishing a single broadcast event.
+  </Tab>
+  <Tab title="Broadcast Events">
+    An agent publishes an event with no specific target. All entities that have subscribed to that event type receive it. Subscriptions can include attribute-value filters to limit delivery to entities that meet certain criteria.
+
+    **Use when:** A condition or notification is relevant to an open-ended set of receivers — for example, a state change that any nearby observer should react to. Broadcasts are efficient when the subscriber set is large; the Event Bus dispatches once and the filtering work is shared.
+  </Tab>
+  <Tab title="Shared State">
+    Entities read and write a shared state record — typically on a static entity that acts as a shared resource or coordination point. Agents query the shared entity's state as part of their decision logic, and update it when they acquire or release the resource.
+
+    **Use when:** Multiple agents need to coordinate access to a common resource without necessarily communicating with each other directly. Be careful to avoid state contention: if many agents update the same shared state record within a single timestep, the ordering of those updates affects outcomes and must be defined by priority rules.
+  </Tab>
+</Tabs>
+
+## Best Practices for Entity Design at Scale
+
+Designing entity schemas and behaviors for large-scale runs requires discipline. The choices that seem harmless at dozens of entities often become critical bottlenecks at thousands.
+
+| Practice | Why It Matters |
+|---|---|
+| Keep per-entity state lean | Every attribute on every entity is loaded, checked at checkpoints, and stored. Unused attributes consume memory and I/O bandwidth proportional to entity count. |
+| Prefer broadcast over polling | Having every agent query a central entity on every tick creates a hotspot. Broadcasting state changes from the central entity pushes work to interested receivers only. |
+| Declare explicit state machines | The engine can optimize behavior invocation for state machines — skipping behaviors whose trigger conditions cannot be satisfied in the current state. |
+| Batch-spawn initial populations | Declaring all initial entities in the scenario file allows the engine to pre-allocate memory and validate the full entity set before the run starts, rather than discovering sizing requirements incrementally. |
+| Cap dynamic spawn rates | Unconstrained dynamic spawning can cause runaway memory growth. Always set a ceiling on total live entities when your scenario includes spawn-from-behavior logic. |
+| Version entity type schemas | When you change an entity type's attribute schema, increment its version. Old output files and scenario files that reference the previous schema remain interpretable against the archived schema version. |
+
+<Info>
+  The relationship graph is stored separately from entity state, which means querying relationships does not require loading full entity state records. Design your entity types to express structure through relationships rather than embedding foreign IDs as raw attributes wherever possible — queries against the relationship graph are significantly faster at scale.
+</Info>

@@ -1,0 +1,164 @@
+---
+title: "Simulation Data Model: Schema and State Management"
+sidebarTitle: "Data Model"
+description: "Learn the MCMG simulation data model, including scenario schema, entity state representation, event records, and output data structures."
+---
+
+Every piece of data that flows through an MCMG simulation — from the initial scenario definition to the final output metrics — follows a defined schema. Understanding the data model helps you author valid scenarios, design entity state that performs well at scale, and build analysis pipelines that can consume output reliably across runs and across schema versions.
+
+## Logical Data Model
+
+MCMG organizes simulation data into four top-level object types. Every artifact you create or consume as a simulation developer maps to one or more of these types.
+
+| Object | When It Exists | Primary Purpose |
+|---|---|---|
+| **Scenario** | Before the run (input) | Declares entities, behaviors, parameters, and initial conditions |
+| **Entity** | During the run (runtime state) | Represents a live actor; holds mutable state and attributes |
+| **Event** | During and after the run | Records every discrete action and interaction |
+| **Output** | After the run (result) | Aggregates, snapshots, and structured logs derived from events and state |
+
+These four types are related hierarchically: a Scenario spawns Entities, Entities generate Events, and Events (plus periodic state samples) are processed into Output. The lineage from Scenario to Output is fully traceable, which supports auditing and result validation.
+
+## The Scenario Object
+
+The Scenario object is the root of all simulation input. It is expressed as a structured file authored before a run and validated against the registered scenario schema at startup.
+
+| Field | Type | Description |
+|---|---|---|
+| `scenario_id` | string | Unique identifier for this scenario definition |
+| `version` | semver string | Schema version this scenario targets |
+| `description` | string | Human-readable purpose statement |
+| `time_unit` | enum | The unit of simulation time (e.g., seconds, minutes) |
+| `duration` | integer | Maximum simulation time before automatic termination |
+| `seed` | integer or null | Fixed seed for deterministic runs; null defers to run config |
+| `entity_definitions` | array | Ordered list of entity type declarations |
+| `initial_population` | array | Spawn directives for the starting entity set |
+| `parameter_refs` | array | References to external parameter files |
+| `output_policy` | object | Configures which events are logged, aggregated, or dropped |
+
+<Note>
+  The `seed` field in the Scenario object is an override, not the primary seed mechanism. In most workflows, you set the seed in the run configuration or parameter file so you can vary it across replications without editing the scenario. Reserve the scenario-level seed for reference runs and validation baselines.
+</Note>
+
+### Parameter Files
+
+Parameter files let you decouple numeric inputs from the structural scenario definition. They are key-value files where each key maps to a named parameter referenced in entity definitions or behavior configurations. A single scenario can be run with many different parameter files to produce a parameter sweep without any changes to the scenario itself.
+
+<Tip>
+  Version your parameter files alongside your scenario files. A scenario run is only reproducible if you can recover both the scenario file and the exact parameter file used. Include both in your run manifest.
+</Tip>
+
+## The Entity Object
+
+The Entity object represents the runtime state of a single entity or agent during a simulation run. It is not a file you write directly — it is maintained by the engine — but its structure determines how you author entity type schemas in your scenario and how you query state in behaviors and output collectors.
+
+| Field | Type | Description |
+|---|---|---|
+| `entity_id` | string | Globally unique identifier, assigned at spawn |
+| `type` | string | References a declared entity type in the scenario |
+| `spawned_at` | simulation time | Timestamp at which the entity was created |
+| `status` | enum | Current lifecycle phase: `active`, `dormant`, or `destroyed` |
+| `attributes` | map | Typed, mostly-static characteristics set at spawn |
+| `state` | map | Typed, mutable values updated during event processing |
+| `relationships` | array | Directed, typed connections to other entities |
+| `behavior_state` | map | Internal state managed by behavior modules (state machine position, counters, etc.) |
+
+The `attributes` map and `state` map both follow the schema declared in the entity type definition. The engine validates all writes to `state` against the schema at event processing time. Writes that violate the schema produce a validation error in the engine log and are rejected — the entity's state remains unchanged.
+
+<Info>
+  `behavior_state` is separate from `state` intentionally. Behavior-internal bookkeeping — such as tracking how long an agent has been in a given state, or remembering the last entity it interacted with — should live in `behavior_state`, not in `state`. Only values that external consumers (other behaviors, output collectors) legitimately need to observe should live in `state`.
+</Info>
+
+## The Event Object
+
+The Event object is the atomic record of something that happened in the simulation. Every interaction, trigger, and state change is mediated by an event. Events are the canonical source of truth for what occurred, in what order, and why.
+
+| Field | Type | Description |
+|---|---|---|
+| `event_id` | string | Unique identifier for this event instance |
+| `event_type` | string | References a declared event type in the scenario schema |
+| `timestamp` | simulation time | When the event was dispatched |
+| `priority` | integer | Dispatch priority within its timestamp |
+| `source_id` | string or null | ID of the entity that published the event; null for engine-generated events |
+| `target_id` | string or null | ID of the intended recipient; null for broadcast events |
+| `payload` | map | Typed data carried by the event; schema defined by `event_type` |
+| `causation_id` | string or null | ID of the event that triggered this one, for causality tracing |
+
+The `causation_id` field enables causality chain reconstruction in post-run analysis. Starting from any event, you can walk backward through `causation_id` references to reconstruct the full chain of events that led to a particular outcome. This is invaluable for debugging unexpected behaviors.
+
+## The Output Object
+
+Output data is produced by the Output Layer during and after a run. It comes in three forms, each suited to different analytical uses.
+
+<Tabs>
+  <Tab title="Event Logs">
+    The event log is an append-only record of all events dispatched during a run that matched the output policy's logging filter. Each record is a serialized Event object. Event logs are the most granular output artifact and can grow very large for high-fidelity, long-duration runs.
+
+    | Field | Type | Description |
+    |---|---|---|
+    | `run_id` | string | Links this log to a specific run and its manifest |
+    | `log_sequence` | integer | Monotonically increasing record number for ordering |
+    | `event` | Event object | The full event record |
+    | `wall_time` | timestamp | Wall-clock time when the event was processed (for profiling) |
+
+    Event logs are the input to replay mode and to any analysis that requires full event-level detail.
+  </Tab>
+  <Tab title="State Snapshots">
+    A state snapshot captures the full state of every active entity at a specific simulation time. Snapshots are written at intervals configured in the output policy. They provide a time-series view of how entity states evolved, without requiring you to reconstruct state by replaying the entire event log.
+
+    | Field | Type | Description |
+    |---|---|---|
+    | `run_id` | string | Links this snapshot to its run |
+    | `snapshot_time` | simulation time | The simulation clock value at capture |
+    | `entity_count` | integer | Number of active entities at snapshot time |
+    | `entities` | array | Array of Entity objects (excluding `behavior_state`) |
+
+    Snapshots are typically much smaller than full event logs for sparse simulations. For entity-dense runs, snapshot frequency should be tuned carefully — too frequent and snapshots dominate output volume; too infrequent and you lose temporal resolution for analysis.
+  </Tab>
+  <Tab title="Metrics">
+    Metrics are scalar or vector summaries computed in-flight by the Output Layer's aggregators. They are the most compact output format and the appropriate choice for results you plan to compare across many replications in a parameter sweep.
+
+    | Field | Type | Description |
+    |---|---|---|
+    | `run_id` | string | Links this metrics record to its run |
+    | `metric_name` | string | Registered aggregator name |
+    | `computation` | enum | Type of aggregation: count, sum, mean, percentile, histogram |
+    | `window` | object | The time window over which the metric was computed |
+    | `value` | numeric | The computed result |
+    | `entity_filter` | string or null | Entity type or ID filter applied before aggregation |
+
+    Define metrics in the output policy before a run, not as a post-processing step. In-flight aggregation is far more efficient than processing a full event log after the fact for large runs.
+  </Tab>
+</Tabs>
+
+## State Representation and Persistence
+
+Entity state is held in memory by the engine during a run and written to persistent storage only at checkpoint intervals (as state snapshots) and at run termination (as a final snapshot). Between checkpoints, the authoritative state is in memory only.
+
+<Accordion title="Checkpoint intervals and recovery">
+  If a run is interrupted between checkpoints, state changes since the last checkpoint are lost. The run can be restarted from the last checkpoint, but events between the checkpoint and the interruption will be re-executed, which is only safe if all behaviors are deterministic. Tune checkpoint intervals based on your risk tolerance: more frequent checkpoints reduce potential replay work but increase I/O load during the run.
+</Accordion>
+
+<Accordion title="Lazy loading for large entity populations">
+  For runs with very large entity populations, the engine can be configured to load entity state lazily — only paging an entity's full state record into memory when an event targets or queries that entity. Entities that are not involved in events during a time window stay out of memory. This trades I/O latency for reduced peak memory consumption and is most effective when entity interaction is sparse.
+</Accordion>
+
+<Accordion title="Derived state and caching">
+  Some analysis needs values that are derived from entity state — running totals, moving averages, distance computations. Do not store derived values as entity state attributes. Instead, configure Output Layer aggregators to compute them. Storing derived values in entity state wastes memory, introduces consistency risks (the derived value can go stale), and makes schema versioning harder.
+</Accordion>
+
+## Schema Versioning
+
+MCMG uses semantic versioning for all data schemas: scenario schemas, entity type schemas, and event type schemas each carry an independent version number. The engine validates inputs against the schema version declared in the scenario file and rejects inputs that target an unsupported version.
+
+| Version Component | Meaning | Backward Compatible? |
+|---|---|---|
+| **Major** | Breaking structural change (field removal, type change) | No — requires migration |
+| **Minor** | Additive change (new optional field, new event type) | Yes — older files still valid |
+| **Patch** | Documentation or constraint clarification, no structural change | Yes |
+
+<Warning>
+  When you increment a major schema version, existing scenario files that target the old version will fail validation against the new schema. Provide a migration guide alongside the version bump, and maintain the old schema version in the registry for a defined deprecation window so existing runs remain reproducible.
+</Warning>
+
+Output files embed the schema version they were produced under, so analysis tooling can select the correct parser even when working with historical output from older runs. Store output files alongside their run manifests — the manifest records the exact schema version in effect when the run executed, which is the ground truth for interpreting results.

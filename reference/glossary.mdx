@@ -1,0 +1,157 @@
+---
+title: "MCMG Simulation Project Glossary of Terms"
+sidebarTitle: "Glossary"
+description: "Definitions of all key terms and concepts used in the MCMG simulation project, from agent and entity to scenario, fidelity, and timestep."
+---
+
+This glossary defines the key terms and concepts you will encounter throughout MCMG documentation, configuration files, and team communications. Terms are organised alphabetically into letter-range sections. Where a term is closely related to another defined term, cross-references are provided. Becoming familiar with this vocabulary will help you read configuration references and output documentation accurately and communicate clearly with other project contributors.
+
+<Accordion title="A – C">
+
+**Agent**
+An autonomous entity within the simulation that perceives its local environment, maintains internal state, and selects actions based on a defined behaviour set. Agents are a specialised category of entity distinguished by their decision-making capability. All agents are entities, but not all entities are agents.
+
+**Archetype**
+A named template that defines the initial attribute values, behaviour set, parameter defaults, and lifecycle mode for a class of entities. When the engine creates an entity, it initialises the entity by copying the archetype's definition. Multiple entity instances can share the same archetype while maintaining independent runtime state.
+
+**Attribute**
+A named, typed value attached to an entity that represents some aspect of its current state — for example, its position, energy level, or health. Attributes are readable and writable by behaviours and event handlers during the simulation. Some attributes are defined by the entity's archetype; others are added dynamically at runtime.
+
+**Batch Run**
+The execution of multiple independent simulation runs in sequence or in parallel, typically to explore a parameter space or to gather statistical results across different seeds. Each run in a batch produces its own output directory, identified by a unique run ID. See also: **Parameter Sweep**, **Run**.
+
+**Behaviour**
+A named unit of logic that an entity can execute in response to a trigger or on a recurring schedule. Behaviours read and modify entity attributes, emit events, and interact with other entities. Each behaviour has an associated weight that modulates how likely or how strongly it is applied when multiple behaviours compete.
+
+**Boundary Condition**
+A rule that specifies what happens when an entity reaches or crosses the spatial boundary of the simulation domain. Common conditions include reflection (velocity reversal), wrapping (teleport to the opposite edge), absorption (halt at the boundary), and destruction (remove the entity). Boundary conditions are configured per scenario via the `scenario.boundary_behaviour` parameter.
+
+**Concurrency**
+The engine's ability to process entity updates and event handling across multiple worker threads simultaneously. Concurrency improves throughput on multi-core hardware but requires that entity state be accessed in a thread-safe manner. The degree and mode of concurrency are controlled by the `engine.concurrency` configuration block.
+
+**Configuration**
+The complete set of files and values that determine how a simulation run is set up, including scenario definitions, engine settings, logging preferences, and output options. Configuration is distinct from parameters: configuration controls the engine's operating mode, while parameters live inside the simulation model and are passed to entity logic. See also: the [Configuration Reference](/reference/configuration).
+
+**Constraint**
+A rule that limits the valid values of one or more parameters or attributes, either at configuration-load time or dynamically during the run. Constraints are defined in archetype and scenario definitions. Violating a constraint at load time raises a fatal error; a runtime constraint violation emits a warning and may clamp the offending value.
+
+</Accordion>
+
+<Accordion title="D – F">
+
+**Determinism**
+The property of a simulation run whereby the same configuration, parameter values, and seed always produce exactly the same sequence of events and final state, regardless of when or where the run is executed. MCMG achieves determinism through a seeded PRNG, deterministic event ordering, and strict synchronisation of concurrent state updates. See also: **Seed**, **Reproducibility**.
+
+**Discrete Event**
+An event that is scheduled to occur at a specific point in simulated time and that produces an instantaneous change to the simulation state. The MCMG engine is a discrete-event simulation: time advances in steps governed by the timestep, and all state changes are mediated through events rather than through continuous differential equations. See also: **Event**, **Timestep**.
+
+**Duration**
+The total simulated time a scenario is configured to run, expressed in simulation time units. The simulation clock starts at `0.0` and the engine halts when the clock reaches `duration`. Duration is set by the `scenario.duration` configuration field. See also: **Simulation Time Unit**, **Timestep**.
+
+**Entity**
+The fundamental unit of simulation state. An entity is any discrete object the simulation tracks — physical objects, abstract agents, environmental features, or transient phenomena. Every entity has a unique ID, a spatial position (if spatial dimensions are enabled), a set of attributes, and a lifecycle state. See also: **Agent**, **Archetype**, **Lifecycle**.
+
+**Event**
+A discrete, time-stamped occurrence that the engine places on the event queue and processes at the appropriate simulation time. Events carry a type, a priority, optional source and target entity IDs, and a payload of type-specific data. Processing an event may change entity state, create or destroy entities, or schedule further events. See also: **Event Bus**, **Event Queue**, **Discrete Event**.
+
+**Event Bus**
+The publish-subscribe mechanism through which behaviours and system components emit and subscribe to events by type. When an event is published to the bus, all registered handlers for that event type are invoked. The event bus decouples event producers from consumers, making scenarios extensible without modifying core engine code.
+
+**Event Queue**
+The sorted data structure that holds all pending events ordered by scheduled simulation time and then by priority. The engine repeatedly removes the earliest-scheduled, highest-priority event from the queue, advances the simulation clock to that event's timestamp, and processes the event. The queue's maximum capacity is set by `engine.event_queue_capacity`.
+
+**Fidelity**
+A setting that controls the level of detail at which entity behaviours, interactions, and physical processes are resolved. MCMG defines three fidelity levels: `low` (fast, simplified), `medium` (balanced), and `high` (accurate, computationally intensive). Higher fidelity produces more realistic results but increases run time and memory usage. Fidelity is configured via `scenario.fidelity`.
+
+**Fidelity Level**
+One of the three named fidelity settings (`low`, `medium`, `high`) used to select between pre-defined resolution strategies for behaviour evaluation, collision detection, interaction modelling, and physics. Each fidelity level activates a different set of internal approximation algorithms. Switching fidelity level does not change the scenario definition, only the resolution at which it is evaluated.
+
+</Accordion>
+
+<Accordion title="G – L">
+
+**Global Parameter**
+A parameter defined at the top level of the parameter hierarchy that applies across the entire simulation unless overridden at the scenario, entity, or run level. Global parameters establish the baseline behaviour of the engine for all scenarios. See also: **Parameter**, the [Parameters Reference](/reference/parameters).
+
+**Initial State**
+The complete description of the simulation world at simulation time `0.0`, before any events are processed. The initial state includes the set of entities, their starting attribute values, and any pre-scheduled events. It may be generated procedurally from the scenario definition or loaded from a saved state snapshot.
+
+**Integration Test**
+A test that exercises multiple components of the simulation pipeline together — typically loading a scenario, running it for a short duration, and verifying that outputs match expected values. Integration tests are distinct from unit tests (which test individual behaviours or functions in isolation) and from validation runs (which assess model accuracy against reference data).
+
+**Lifecycle**
+The set of states an entity can occupy from creation to destruction, and the rules that govern transitions between those states. The standard lifecycle states are `spawning`, `active`, `dormant`, and `destroying`. Custom lifecycle modes may define additional states. The default lifecycle mode for new entities is set by `global.default_lifecycle`.
+
+**Lookahead**
+In a parallel or distributed simulation, the minimum time interval by which one simulation component can predict it will not receive events from another component. Lookahead enables safe parallel processing: a worker can advance its local clock by at least the lookahead value without risk of receiving out-of-order events. MCMG uses lookahead in its concurrent processing mode to synchronise workers efficiently.
+
+</Accordion>
+
+<Accordion title="M – P">
+
+**Metric**
+A named, quantified measurement derived from simulation outputs. Metrics may be computed in real time during a run (e.g., current entity count) or calculated from output files after the run completes (e.g., mean interaction duration). The summary report includes a standard set of metrics for every run; custom metrics can be derived from the event log and snapshots.
+
+**Model**
+The formal representation of the system being simulated, comprising entity archetypes, behaviour definitions, interaction rules, initial state generators, and scenario parameters. The model is the intellectual content of the simulation; the engine is the computational mechanism that executes the model. Changes to the model require a version increment and re-validation.
+
+**Parameter**
+A named, typed value that is passed into entity logic, behaviour rules, and event handlers to control how the simulation resolves. Parameters are organised in a hierarchy (global → scenario → entity → run) with each level able to override the values inherited from the level above. See also: the [Parameters Reference](/reference/parameters).
+
+**Parameter Sweep**
+A systematic exploration of the simulation's behaviour across a range of parameter values. In a parameter sweep, you run the same scenario multiple times, varying one or more parameters between runs, and compare the outputs to understand how sensitive the model is to those parameters. Parameter sweeps are typically executed as batch runs. See also: **Batch Run**.
+
+**Peer Review**
+The structured process by which a scenario definition, model change, or analysis result is examined by at least one other qualified contributor before it is accepted into the project. Peer review is a quality gate that helps catch errors in model logic, parameter choices, and result interpretation before they propagate into downstream work.
+
+</Accordion>
+
+<Accordion title="Q – S">
+
+**Reproducibility**
+The ability to obtain the same simulation results from the same inputs on any conforming installation of the engine. Reproducibility depends on a fixed seed, deterministic event ordering, and version-controlled configuration. A run is considered reproducible if its `run_id`, `seed`, scenario version, and engine version are sufficient to recreate it exactly. See also: **Determinism**, **Seed**.
+
+**Run**
+A single execution of the simulation engine from start to finish (or until a fatal error). Each run produces a unique `run_id` and its own set of output files. The word "run" refers to the execution instance, not to the scenario definition — the same scenario can be run many times with different seeds or parameter overrides.
+
+**Run Mode**
+The operating mode selected for a given run, which determines the combination of features active. Common run modes include `standard` (full simulation), `dry_run` (validate and exit), `profile` (run with performance instrumentation), and `replay` (re-execute events from a previously recorded event log). Run mode is set via run parameters.
+
+**Scenario**
+A complete, self-contained specification of a simulation experiment. A scenario defines the entity archetypes in use, the initial state, the parameter values, the duration, the seed, and any scenario-specific event schedules. Scenarios are versioned; changes to a scenario's definition should increment its version to maintain a clear audit trail.
+
+**Seed**
+The integer value used to initialise the pseudo-random number generator (PRNG) at the start of a run. Providing the same seed with the same scenario version and engine version guarantees a deterministic, reproducible run. A seed of `0` in the configuration causes the engine to derive a seed from the system clock, producing a non-deterministic run. See also: **Determinism**, **Reproducibility**.
+
+**Simulation**
+The process of executing a model over simulated time to study the behaviour of a system. In MCMG, a simulation encompasses the engine, the model, the configuration, the parameters, and all the outputs produced during a run. The word is also used loosely to refer to the project as a whole.
+
+**Snapshot**
+A complete serialised image of the simulation state — all live entities and their attributes — captured at a specific point in simulated time. Snapshots allow post-run analysis without replaying the event log, and they can serve as the initial state for a subsequent run. See also: **State**, **Output Types** in the [Outputs & Metrics Reference](/reference/outputs-and-metrics).
+
+**State**
+The complete information describing the simulation world at a single instant in simulated time. State includes the position, velocity, and attributes of every live entity, the contents of the event queue, and any global model variables. A snapshot is a serialised representation of state written to disk.
+
+**Stakeholder**
+Any person or group with an interest in the simulation project's outputs or processes. Stakeholders may include model developers, analysts who interpret results, project sponsors, and external reviewers. Clear documentation and reproducible runs help all stakeholders understand and trust simulation findings.
+
+</Accordion>
+
+<Accordion title="T – Z">
+
+**Throughput**
+The number of simulation events processed per second of real-world wall-clock time. Throughput is the primary measure of engine performance. It depends on fidelity level, entity count, concurrency configuration, and the complexity of the event handlers in the model. The summary report includes average throughput for each run.
+
+**Timestep**
+The fixed increment by which the simulation clock advances on each engine tick. A smaller timestep provides finer temporal resolution and can improve accuracy for rapidly changing systems, but requires more ticks — and therefore more compute — to cover the same simulated duration. Timestep is set by `engine.timestep` in configuration. See also: **Duration**, **Discrete Event**.
+
+**Trigger**
+A condition or event that causes a behaviour to execute. Triggers may be time-based (fire every N STUs), event-based (fire when a specific event type is received), state-based (fire when an attribute crosses a threshold), or proximity-based (fire when another entity enters the perception radius). Each behaviour definition specifies one or more triggers.
+
+**Validation**
+The process of confirming that the simulation model accurately represents the real-world or conceptual system it is intended to model. Validation is distinct from verification (which confirms that the engine correctly implements the model). Validation typically involves comparing simulation outputs against reference data, expert judgement, or analytical solutions.
+
+**Version**
+A label attached to a scenario definition, model component, or engine release to identify a specific, stable state of that artefact. Versioning is essential for reproducibility: recording the version of every component used in a run ensures you can recreate the exact conditions of that run later. MCMG stores the scenario version and engine version in every output file's metadata.
+
+</Accordion>

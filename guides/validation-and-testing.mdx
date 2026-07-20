@@ -1,0 +1,267 @@
+---
+title: "Validate and Test Your MCMG Simulation Scenarios"
+sidebarTitle: "Validation & Testing"
+description: "How to validate MCMG simulation scenarios for correctness, coverage, and performance — including unit checks, integration tests, and sanity runs."
+---
+
+Simulation outputs are only as trustworthy as the scenarios that produced them. In a large-scale simulation project, a misconfigured entity definition, a broken event trigger, or an unconstrained state field can quietly corrupt every result a scenario produces — and the problem may not become obvious until hours of compute time have been spent. Building validation and testing into your workflow at every level is what separates scenarios that teams can trust from scenarios that generate questions instead of answers. This guide describes each level of validation, the checks that belong there, and how to document your findings.
+
+## Why Validation Matters in Large-Scale Simulations
+
+At small scale, problems are easy to spot because you can reason about the entire system at once. At large scale — thousands of entity instances, millions of events, hours of wall-clock execution time — the same problems become invisible until they manifest as anomalous output metrics, crashed runs, or results that contradict known physical or logical constraints.
+
+Validation is the practice of asserting, at each level of the system, that the scenario does what you intended before you commit time and resources to a full-scale run. Done well, it catches the vast majority of problems in under a minute rather than after a multi-hour batch job.
+
+---
+
+## Levels of Validation
+
+MCMG validation follows a four-level progression. Each level builds on the previous one and catches different categories of problems.
+
+| Level | What it checks | When to run |
+|---|---|---|
+| **Schema validation** | Config files conform to the required structure and types | Every time you modify a config file |
+| **Logic validation** | Entity definitions, event wiring, and parameter references are internally consistent | Before committing a new or modified scenario |
+| **Behavioral validation** | The scenario produces outputs that match expected behavioral properties under known inputs | Before any batch or sweep run |
+| **Acceptance** | The scenario meets all documented requirements for its objective | Before considering the scenario "production-ready" |
+
+---
+
+## Schema Validation
+
+Schema validation is the fastest and most mechanical level of checking. It confirms that every configuration file you have written conforms to the documented structure — correct field names, correct types, required fields present, values within declared ranges.
+
+<Steps>
+  <Step title="Run schema validation on a single scenario">
+    ```bash
+    mcmg validate --scenario my-scenario-name
+    ```
+
+    Errors appear immediately with the file path and line number, making them fast to fix.
+  </Step>
+
+  <Step title="Run schema validation across all scenarios">
+    ```bash
+    mcmg validate --all
+    ```
+
+    Run this before merging any pull request that touches shared library files, since a change to an archetype or behavior module can break schema compliance in scenarios that reference it.
+  </Step>
+
+  <Step title="Integrate into your editor">
+    Configure your editor or IDE to use the MCMG JSON Schema files (found in `tooling/schemas/`) for live validation as you type. This gives you immediate feedback on config errors without running the CLI.
+  </Step>
+</Steps>
+
+<Tip>
+Schema validation runs in milliseconds. There is no reason to skip it. Add `mcmg validate --scenario <name>` to your pre-commit hook so you never accidentally commit a scenario that fails basic structure checks.
+</Tip>
+
+---
+
+## Logic Validation
+
+Logic validation goes beyond structure and checks whether the pieces of your scenario are wired together correctly. It verifies that every entity type reference resolves to a real file, that every event refers to entity types that exist, that every parameter name used in an event effect has a corresponding definition, and that there are no circular dependencies in the event graph.
+
+<Steps>
+  <Step title="Run logic validation">
+    ```bash
+    mcmg validate --scenario my-scenario-name --level logic
+    ```
+  </Step>
+
+  <Step title="Review cross-reference errors">
+    Logic validation reports two categories of cross-reference errors:
+
+    - **Unresolved reference**: a file path, entity type name, or parameter name that does not match anything in the scenario or shared library.
+    - **Type mismatch**: an event effect that attempts to assign a value of the wrong type to a state field (e.g., assigning a float to a boolean field).
+
+    Fix each reported error before proceeding to the next validation level.
+  </Step>
+
+  <Step title="Inspect the event dependency graph">
+    For scenarios with complex event chains, generate the event dependency graph and review it visually:
+
+    ```bash
+    mcmg graph --scenario my-scenario-name --output event-graph.dot
+    ```
+
+    Open the `.dot` file with any Graphviz-compatible viewer. Cycles in the graph that are not intentionally recursive are a logic error.
+  </Step>
+</Steps>
+
+---
+
+## Unit-Level Checks
+
+Unit-level checks test individual components of a scenario — specifically entity definitions and event routing — in isolation, without running the full simulation engine.
+
+### Entity definition checks
+
+| Check | What to verify |
+|---|---|
+| State field completeness | Every field referenced by any event effect is defined in the entity |
+| Initial value validity | Initial values fall within the declared valid range |
+| Population bounds | `max` population is at least as large as `initial` population |
+| Archetype compatibility | If an archetype is referenced, all overridden fields are compatible types |
+
+Run entity unit checks with:
+
+```bash
+mcmg check entity --scenario my-scenario-name --type agent
+```
+
+### Event routing checks
+
+| Check | What to verify |
+|---|---|
+| Trigger completeness | Every trigger type is fully specified (radius for proximity triggers, time for scheduled triggers, etc.) |
+| Participant resolution | All entity types named as participants exist in the scenario |
+| Effect coverage | Every state field named in an effect exists on the corresponding entity type |
+| Missing terminal events | Entity state machines can reach all declared states and have an exit path |
+
+Run event routing checks with:
+
+```bash
+mcmg check events --scenario my-scenario-name
+```
+
+---
+
+## Integration Checks
+
+Integration checks run the full simulation engine against your scenario with a small, controlled input and compare the actual outputs against expected outputs you specify in advance.
+
+<Steps>
+  <Step title="Define an integration test fixture">
+    Create a test fixture file that specifies exact parameter overrides, a fixed seed, and the expected output values you want to assert. Place fixture files in a `tests/` directory within your scenario directory.
+
+    ```yaml
+    # scenarios/my-scenario-name/tests/basic-interaction.test.yaml
+
+    description: "Verify that entity population declines under normal interaction load"
+
+    params:
+      agent_initial_population: 100
+      interaction_radius: 5.0
+    simulation:
+      seed: 1
+      time:
+        end: 100
+
+    assertions:
+      - metric: entity_count_by_type
+        entity_type: agent
+        at_step: 100
+        operator: less_than
+        value: 100          # Population must have declined from initial 100
+      - metric: event_rate_per_step
+        at_step: 50
+        operator: greater_than
+        value: 0            # Some events must have occurred by step 50
+    ```
+  </Step>
+
+  <Step title="Run integration tests">
+    ```bash
+    mcmg test --scenario my-scenario-name
+    ```
+
+    Each test fixture is run in sequence. A fixture passes if all its assertions hold. Failures report the expected value, the actual value, and the step at which the assertion was evaluated.
+  </Step>
+
+  <Step title="Add tests for each new behavior">
+    Every new event type or entity behavior you add to a scenario should have at least one corresponding integration test. The test should exercise the new behavior specifically and assert on a metric it affects.
+  </Step>
+</Steps>
+
+<Warning>
+Integration tests run the full simulation engine, so they take longer than schema or logic checks. Keep individual test fixtures short — use small populations and short time horizons. The goal is behavioral correctness, not performance measurement.
+</Warning>
+
+---
+
+## Sanity Runs
+
+A sanity run is a minimal, quick execution of the scenario under default parameters designed to catch any remaining errors that only manifest at runtime — engine-level failures, output writing errors, or emergent behavior so extreme that it immediately signals a problem.
+
+<Steps>
+  <Step title="Launch a sanity run">
+    ```bash
+    mcmg run \
+      --scenario my-scenario-name \
+      --mode single \
+      --param.agent_initial_population 50 \
+      --param simulation.time.end 200
+    ```
+
+    Keep population and time horizon small enough that the run completes in under two minutes.
+  </Step>
+
+  <Step title="Review the log output">
+    Skim the log for `ERROR` and `WARN` entries. A small number of warnings about entities reaching boundary conditions is normal. A large number of warnings, or any errors, requires investigation before proceeding to full-scale runs.
+  </Step>
+
+  <Step title="Review summary metrics">
+    Check the output metrics files for obviously anomalous values:
+
+    - Does entity count decline to zero immediately? (Likely an over-aggressive event effect)
+    - Does event rate stay at zero throughout? (Likely an event trigger that never fires)
+    - Are any metric values `NaN` or out of the declared range? (Likely an uninitialized or unbounded state field)
+  </Step>
+</Steps>
+
+---
+
+## Metrics-Based Validation
+
+For scenarios that have been running for some time, you can validate new runs against historical baseline metrics to detect regressions.
+
+### Key metrics to check and acceptable ranges
+
+The following table describes the most commonly monitored output metrics and what constitutes a valid range for a well-configured scenario. Acceptable ranges vary by scenario — calibrate these baselines against your first validated full-scale run.
+
+| Metric | Description | Red flags |
+|---|---|---|
+| Entity count over time | Total active entities per step | Drops to zero in the first 10% of steps; never declines at all |
+| Event rate per step | Number of events processed per time step | Zero for extended periods; grows unboundedly |
+| State field distributions | Distribution of each state field value across the entity population | All entities converge to the same value immediately; values outside declared range |
+| Step execution time | Wall-clock time per simulation step | Sudden spikes mid-run; continuous increase (memory leak indicator) |
+| Output file sizes | Size of each metrics and log file | Unexpectedly empty files; files larger than expected by an order of magnitude |
+
+### Comparing runs with the diff command
+
+```bash
+mcmg diff \
+  --run-a run-20240301-baseline \
+  --run-b run-20240315-a3f7c2 \
+  --metric entity_count_by_type
+```
+
+The diff command produces a side-by-side comparison of metric values across two runs at each logged time step, and flags steps where values differ by more than a configurable tolerance threshold.
+
+---
+
+## How to Write a Validation Report
+
+When a scenario completes all four levels of validation and is ready to be used for production runs, write a validation report and commit it to the scenario directory as `VALIDATION.md`.
+
+A complete validation report contains the following sections:
+
+| Section | Content |
+|---|---|
+| Scenario ID and version | The exact scenario ID and version validated |
+| Validation date | When the validation was completed |
+| Validator | Who performed the validation (role, not name) |
+| Schema validation result | Pass/fail, and the CLI version used |
+| Logic validation result | Pass/fail, and any non-blocking warnings noted |
+| Unit check results | Pass/fail per entity type and per event |
+| Integration test results | Pass/fail per test fixture, with fixture names listed |
+| Sanity run result | Pass/fail, with the run ID of the sanity run on record |
+| Baseline metrics | The key metric values from the first accepted full-scale run, used as future regression baselines |
+| Known limitations | Any behaviors or edge cases the validation process did not cover, and why |
+| Approval | Sign-off from the scenario owner that the report is complete |
+
+<Note>
+The validation report is a living document. Update it whenever the scenario changes in a way that requires re-validation. Version the report alongside the scenario configuration using the same version number in `scenario.yaml`.
+</Note>

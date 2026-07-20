@@ -1,0 +1,135 @@
+---
+title: "Simulation Architecture: Components and Interactions"
+sidebarTitle: "Architecture"
+description: "Understand the high-level architecture of MCMG simulations, including the simulation engine, scenario layer, entity system, and event bus."
+---
+
+Understanding how MCMG's internal layers fit together gives you a mental model for where to look when something goes wrong, where to hook in custom logic, and why certain configuration choices have wide-ranging effects on runtime behavior. This page walks through the major architectural components, explains how they interact, and shows where your scenario files and parameters plug into the system.
+
+## Architectural Overview
+
+MCMG organizes simulation infrastructure into five distinct layers arranged in a vertical stack. Each layer has a single primary responsibility and communicates with adjacent layers through defined interfaces. This strict layering means that a change in one layer — say, swapping an output format — does not require changes anywhere else.
+
+| Layer | Primary Responsibility | Key Artifacts |
+|---|---|---|
+| **Scenario Layer** | Defines *what* is being simulated | Scenario files, parameter files, seed manifests |
+| **Entity System** | Represents all actors and their state | Entity registry, attribute stores, relationship graph |
+| **Event Bus** | Routes events between entities and the engine | Event queue, subscription registry, dispatch log |
+| **Simulation Engine** | Advances simulation time and enforces causality | Clock, scheduler, synchronization coordinator |
+| **Output Layer** | Captures, aggregates, and persists results | Event logs, state snapshots, metrics streams |
+
+At runtime, control flows downward: the Scenario Layer initializes the Entity System, which registers subscriptions on the Event Bus, which feeds events to the Simulation Engine, which drives time forward and triggers output writes through the Output Layer.
+
+## Layer-by-Layer Breakdown
+
+### Scenario Layer
+
+The Scenario Layer is the entry point for everything that describes a specific simulation run. You author scenario files that declare which entity types exist, how many instances to create, what initial state each instance carries, and which behavioral rules apply. Parameter files let you vary numeric inputs across replications without editing the scenario itself.
+
+The Scenario Layer does not execute logic — it is purely declarative. The engine reads scenario artifacts at startup, validates them against the registered schema, and uses them to bootstrap all other layers. This separation means scenario authors never need to understand engine internals.
+
+<Tip>
+  Keep scenario files focused on a single coherent experimental question. If you find yourself adding conditional blocks to a scenario file to handle unrelated cases, split it into separate scenarios and use a parameter sweep to vary inputs systematically.
+</Tip>
+
+### Entity System
+
+The Entity System maintains the registry of every entity and agent active in the simulation at any point in time. Each entity has a unique identifier, a declared type, a mutable state record, and a set of typed attributes. The system also manages the relationship graph — a directed structure that records connections between entities such as membership, ownership, and communication links.
+
+The Entity System exposes two interfaces: a read interface used by behaviors and output collectors to query current state, and a write interface used exclusively by the engine during event processing to apply state transitions. This access control prevents behaviors from mutating state outside of a scheduled event, which would break determinism.
+
+### Event Bus
+
+The Event Bus is the communication backbone of the simulation. Every interaction between entities — a message, a state change notification, a trigger — is expressed as an event published to the bus. Entities and subsystems declare subscriptions at initialization time, and the bus routes each published event to all matching subscribers.
+
+<CardGroup cols={2}>
+  <Card title="Publication" icon="arrow-up-from-bracket">
+    Any behavior, rule, or engine subsystem can publish an event. Events carry a type identifier, a timestamp, a source reference, and a typed payload. The bus validates the payload against the registered event schema before queuing.
+  </Card>
+  <Card title="Subscription" icon="bell">
+    Subscribers register interest by event type, optionally filtered by source entity or attribute value. The bus evaluates filters at dispatch time and delivers only matching events, keeping processing overhead proportional to actual interest.
+  </Card>
+  <Card title="Ordering" icon="arrow-down-a-z">
+    Within a single simulated timestamp, events are dispatched in priority order. Equal-priority events at the same timestamp follow a deterministic tie-breaking rule based on event type and source identifier.
+  </Card>
+  <Card title="Replay" icon="rotate-left">
+    The bus logs every dispatched event to the dispatch log. This log is the canonical record for replay runs and for post-hoc debugging of interaction sequences.
+  </Card>
+</CardGroup>
+
+### Simulation Engine
+
+The Simulation Engine is the core executor. It owns the simulation clock, manages the event queue, and is solely responsible for advancing time. No layer above or below the engine is permitted to advance the clock directly.
+
+The engine operates in a tight loop:
+
+<Steps>
+  <Step title="Peek at the queue">
+    Examine the front of the event queue to determine the timestamp of the next event. This is the next time point to which the clock will advance.
+  </Step>
+  <Step title="Advance the clock">
+    Move the simulation clock forward to that timestamp. All entities and subsystems that respond to clock ticks receive a tick notification before events at the new timestamp are processed.
+  </Step>
+  <Step title="Dispatch events">
+    Process all events at the current timestamp in priority order. Each dispatch may produce new events, which are inserted into the queue at their scheduled timestamps.
+  </Step>
+  <Step title="Checkpoint if due">
+    If a checkpoint interval has elapsed, instruct the Output Layer to write a state snapshot. Then return to step one.
+  </Step>
+</Steps>
+
+In distributed runs, the engine's synchronization coordinator negotiates with peer coordinators to determine how far each worker can advance safely, based on the lookahead guarantee. This is described in detail in the [Time & Events](/concepts/time-and-events) guide.
+
+### Output Layer
+
+The Output Layer is responsible for capturing data without interfering with simulation logic. It subscribes to a configurable set of event types and entity state change notifications, buffers incoming data, and writes it to configured sinks — flat files, streaming queues, or in-memory stores for interactive runs.
+
+The Output Layer is designed to be lossy-by-configuration: you specify which events generate full records, which are aggregated into counters or histograms, and which are silently dropped after incrementing a summary statistic. This keeps output volume manageable without requiring changes to scenario or behavior code.
+
+<Note>
+  Aggregation happens inside the Output Layer, not inside behaviors. If you need a running count of a particular event type, configure an aggregator in the output layer rather than maintaining a counter in entity state. Mixing output concerns into entity state creates coupling between analytical needs and simulation logic.
+</Note>
+
+## Component Interactions at Runtime
+
+At runtime, the five layers interact continuously. The following sequence illustrates a representative interaction — an agent detecting a condition and triggering a response:
+
+1. The **Engine** advances the clock and dispatches a tick event.
+2. An **Entity System** behavior evaluates the agent's current state against its decision rules.
+3. The behavior finds a condition satisfied and publishes a response event to the **Event Bus**.
+4. The Event Bus routes the event to all matching subscribers — potentially other entities and the Output Layer.
+5. Receiving entities process the event, potentially publishing further events.
+6. The **Output Layer** receives the original event and records it according to the configured output policy.
+7. All new events generated in this step are added to the queue; the Engine proceeds to the next timestamp.
+
+<Info>
+  This interaction pattern is strictly one-directional per timestep: behaviors read state, compute decisions, and publish events. State mutations happen only when the engine applies queued events at the next dispatch cycle. You cannot read-then-write state within a single event handler in a way that would be visible to other handlers in the same timestep.
+</Info>
+
+## Where Configuration Plugs In
+
+MCMG uses a layered configuration model that distinguishes between three scopes:
+
+| Scope | What It Controls | Where It Lives |
+|---|---|---|
+| **Platform configuration** | Engine behavior, resource limits, distributed topology | Deployment environment; set by platform operators |
+| **Scenario configuration** | Entity types, behaviors, initial conditions, event schemas | Scenario files checked into your project |
+| **Run configuration** | Seeds, fidelity level, output policy, replication count | Parameter files or command-line arguments at execution time |
+
+Separating these scopes means that scenario authors, run operators, and platform engineers each have a clearly bounded set of knobs. Changes in one scope do not require review or sign-off from owners of another scope.
+
+## Separation of Concerns
+
+The architectural split between scenario authoring and engine execution is deliberate and enforced. Scenario files contain no executable code — only declarative descriptions. Behavior logic is defined in registered behavior modules that the engine loads at startup, not embedded in scenario files.
+
+<Accordion title="Why this matters for large teams">
+  When scenario authors can change what is modeled without touching executable code, non-engineers can own scenario design. Subject-matter experts can author scenarios, validate them semantically, and hand them to engineers only when behavior customization is needed. This dramatically expands who can contribute to a simulation project and reduces the review burden on engineering teams.
+</Accordion>
+
+<Accordion title="Why this matters for reproducibility">
+  If scenario files contained executable code, small edits — even reformatting — could change behavior in subtle ways. By keeping scenarios declarative and behavior logic in versioned modules, you get a clean separation between "what the scenario says" and "how the engine interprets it." Both can be versioned and audited independently.
+</Accordion>
+
+<Warning>
+  Avoid the temptation to embed computed values or derived constants directly into scenario files as hard-coded numbers. Use parameter files and named constants instead. Hard-coded values in scenario files are invisible to the parameter sweep tooling and make it nearly impossible to trace which value drove a particular result.
+</Warning>

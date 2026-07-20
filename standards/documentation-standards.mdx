@@ -1,0 +1,206 @@
+---
+title: "Documentation Standards for Simulation Artifacts"
+sidebarTitle: "Doc Standards"
+description: "How to document scenarios, entities, and simulation parameters so that every artifact in the MCMG project is discoverable, reviewable, and maintainable."
+---
+
+Every simulation artifact you produce is only as useful as its documentation. A scenario without a clear objective is unrunnable by anyone but its author. An entity type without a behavior summary cannot be reviewed for correctness. This page defines what documentation is required for each type of artifact, how to write it well, and when to update it versus creating a new version.
+
+## Required Fields for Scenarios
+
+Every scenario must include the following fields in its documentation header before any other content. These fields are validated during the review process — missing fields will block approval.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | String | The human-readable name of the scenario. Must match the scenario filename (excluding version and extension). |
+| `objective` | String | One or two sentences describing what the scenario is designed to test, demonstrate, or measure. |
+| `scope` | List | The bounded set of systems, domains, and behaviors the scenario covers. Anything outside this list is explicitly out of scope. |
+| `assumptions` | List | Conditions treated as true for this scenario that are not verified by the simulation itself. |
+| `constraints` | List | Hard limits on inputs, configurations, or outputs that must hold for the scenario results to be valid. |
+| `version` | String | The current semantic version of the scenario in `vMAJOR.MINOR.PATCH` format. |
+| `status` | Enum | One of: `draft`, `in-review`, `approved`, `deprecated`. |
+
+<Note>
+  The `objective` field is not a description of what the scenario does mechanically. It is a statement of what question the scenario answers or what property it validates. Write it as: "This scenario evaluates whether…" or "This scenario demonstrates that…"
+</Note>
+
+### Writing Scope Clearly
+
+The scope list should be explicit enough that a reviewer unfamiliar with the scenario can determine — without running it — whether a given system or behavior is included. Write each scope item as a full noun phrase, not a single word.
+
+**Good scope items:**
+- Routing behavior of supply vehicles under partial road closures
+- Capacity overflow handling at distribution depots
+- Agent state transitions during evacuation phases
+
+**Bad scope items:**
+- Routing
+- Depots
+- Agents
+
+---
+
+## Required Fields for Entity Types
+
+Every entity type definition must include the following documentation alongside its configuration.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `description` | String | A plain-language explanation of what this entity represents in the simulated world. |
+| `attributes` | Table | Every attribute the entity exposes, with its data type, unit (if applicable), default value, and a one-line description. |
+| `behavior_summary` | String | A prose summary of how this entity acts during a simulation run — what decisions it makes, what state it maintains, and what other entities it interacts with. |
+| `known_limitations` | List | Explicit statements of where the entity model diverges from real-world behavior, and any edge cases it does not handle correctly. |
+
+### Attributes Table Format
+
+Use the following column structure for every attributes table. Do not omit columns or reorder them.
+
+| Attribute | Type | Unit | Default | Description |
+|-----------|------|------|---------|-------------|
+| `speed` | `float` | km/h | `50.0` | Maximum travel speed under nominal conditions |
+| `capacity` | `int` | units | `100` | Maximum number of resource units the entity can carry |
+| `active` | `bool` | — | `true` | Whether the entity participates in the simulation tick |
+
+<Tip>
+  If an attribute has no unit (e.g., a boolean flag or a dimensionless ratio), write a dash (`—`) in the Unit column. Do not leave it blank, as blank cells are often misread as missing data during review.
+</Tip>
+
+### Writing Behavior Summaries
+
+A behavior summary is not a list of method signatures. It is a paragraph that a domain expert — who may not read code — can use to evaluate whether the entity model is realistic. Write it in plain English, third person, present tense:
+
+> "The supply vehicle selects its next destination by evaluating the current priority queue of unfulfilled requests. When two requests share equal priority, it selects the closer one by straight-line distance. It updates its carried capacity at each depot interaction and reports its state to the central coordinator at every simulation tick."
+
+---
+
+## Writing Assumptions and Constraints
+
+Assumptions and constraints are the most commonly under-specified fields in simulation documentation. Use these rules to write them well.
+
+### Assumptions
+
+An assumption is something your scenario treats as true that a reviewer cannot verify from the scenario configuration alone. Each assumption must:
+
+- Be stated as a positive declarative sentence.
+- Identify *what* is assumed and *why* that assumption is acceptable.
+- Be testable in principle, even if not tested here.
+
+<Tabs>
+  <Tab title="Good Assumptions">
+    - "Road network topology is static for the duration of the scenario. Dynamic road changes are out of scope for this version."
+    - "All agents have full knowledge of the current resource map. Imperfect information scenarios are handled separately."
+    - "Depot capacities do not change during a run. Capacity expansion events are not modeled."
+  </Tab>
+  <Tab title="Bad Assumptions">
+    - "Infrastructure is normal." — Too vague; does not specify what "normal" means.
+    - "No unexpected events occur." — Circular; the scenario defines what is unexpected.
+    - "Standard conditions apply." — Provides no information a reviewer can act on.
+  </Tab>
+</Tabs>
+
+### Constraints
+
+A constraint is a condition that must hold for the scenario's outputs to be meaningful. If a constraint is violated, the results are invalid. Each constraint must:
+
+- State the bounded range or condition explicitly (include units).
+- Identify what breaks if the constraint is violated.
+
+**Examples of well-written constraints:**
+- "The number of active agents must not exceed 500. Above this threshold, the routing algorithm degrades to approximate solutions."
+- "Simulation tick interval must be set to 60 seconds. Results are not validated for other tick intervals."
+- "Input road network must cover the full bounding box defined in the scenario parameters. Partial networks produce undefined routing behavior."
+
+---
+
+## Inline Documentation Style
+
+Parameter files and configuration files must include inline comments at every non-obvious field. Follow these rules for inline comments:
+
+- Use the `#` comment character for YAML files.
+- Place the comment on the line immediately above the field, not inline to the right.
+- Explain *why* the value is set, not just *what* it is. The field name already tells the reader what it is.
+- For units, always state the unit in the comment even if it appears in the parameter name.
+
+```yaml
+# Maximum agent travel speed. Calibrated against observed fleet data from
+# the reference dataset. Do not increase above 120 without re-validating
+# the routing benchmarks.
+max_vehicle_speed_kmh: 90.0
+
+# Number of simulation ticks between coordinator state broadcasts.
+# Lower values increase coordination accuracy but raise compute cost
+# nonlinearly. The default of 5 balances fidelity and performance.
+coordinator_broadcast_interval_ticks: 5
+
+# Enables the experimental overflow redistribution algorithm.
+# Set to false for all production runs until benchmarked in v2.2.0.
+enable_overflow_redistribution: false
+```
+
+<Warning>
+  Do not use inline comments to document the obvious. Writing `# agent count` above `agent_count: 50` adds no value and clutters the file. Reserve comments for fields where the value, the unit, or the rationale requires explanation.
+</Warning>
+
+---
+
+## When to Update vs. When to Version
+
+Not every documentation change requires a new version of the artifact. Use this decision rule:
+
+<Tabs>
+  <Tab title="Update In Place">
+    Update the existing documentation without bumping the version when:
+    - You are correcting a typo, grammar error, or formatting issue.
+    - You are clarifying wording without changing meaning.
+    - You are adding detail to an assumption or constraint that was already stated.
+    - You are fixing a broken link or updating a cross-reference.
+  </Tab>
+  <Tab title="Create a New Version">
+    Bump the version and create a changelog entry when:
+    - You are adding, removing, or renaming any field in a scenario or entity definition.
+    - You are changing the stated objective of a scenario.
+    - You are adding or removing items from the scope, assumptions, or constraints lists in a way that changes the artifact's meaning.
+    - You are updating a parameter default value or valid range.
+  </Tab>
+</Tabs>
+
+<Info>
+  When in doubt, err on the side of creating a new version. The versioning overhead is low, and a clean version history is far more valuable than a confusing changelog that mixes structural changes with editorial fixes.
+</Info>
+
+---
+
+## Documentation Checklists
+
+Use these checklists before submitting any artifact for review. Each item must be satisfied — not merely addressed.
+
+<Accordion title="Scenario Documentation Checklist">
+  - [ ] `title` is present and matches the scenario filename (excluding version and extension)
+  - [ ] `objective` is written as a testable statement, not a description of mechanics
+  - [ ] `scope` contains at least three specific, full-phrase items
+  - [ ] `assumptions` are written as positive declarative sentences with stated rationale
+  - [ ] `constraints` include explicit ranges or conditions with units where applicable
+  - [ ] `version` is in `vMAJOR.MINOR.PATCH` format
+  - [ ] `status` is set to a valid enum value
+  - [ ] All cross-references to entity types and parameters use the correct registered names
+  - [ ] The document has been spell-checked and reads clearly to someone unfamiliar with the scenario
+</Accordion>
+
+<Accordion title="Entity Type Documentation Checklist">
+  - [ ] `description` explains what the entity represents in plain language
+  - [ ] Attributes table includes all columns: Attribute, Type, Unit, Default, Description
+  - [ ] Every attribute with a physical unit has that unit stated in both the table and inline comments
+  - [ ] `behavior_summary` is written in plain English, third person, present tense
+  - [ ] `known_limitations` lists at least one item (even well-modeled entities have limitations)
+  - [ ] No attributes are marked "TBD" or left with placeholder descriptions
+  - [ ] The entity definition has been cross-checked against the scenario(s) that reference it
+</Accordion>
+
+<Accordion title="Parameter File Documentation Checklist">
+  - [ ] Every non-obvious field has a comment explaining the rationale, not just the value
+  - [ ] All unit-bearing parameters have their unit stated in both the field name and the comment
+  - [ ] Boolean parameters include a note on what behavior changes when the flag is toggled
+  - [ ] Default values are the production-validated defaults, not development scratch values
+  - [ ] Any parameter with known performance or accuracy implications is flagged in its comment
+  - [ ] The file version matches the scenario or entity version it belongs to
+</Accordion>

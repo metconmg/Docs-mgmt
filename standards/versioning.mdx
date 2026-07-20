@@ -1,0 +1,210 @@
+---
+title: "Versioning Simulation Scenarios and Artifacts"
+sidebarTitle: "Versioning"
+description: "Version control rules for MCMG simulation scenarios, entity definitions, and parameter sets — including semantic versioning and deprecation policy."
+---
+
+Every simulation artifact in the MCMG project carries a version number, and that version number makes a promise to everyone who depends on it. This page defines how semantic versioning applies to simulation artifacts, what triggers each type of version increment, how the project manages branches and deprecations, and what your changelog must contain. Following these rules is not optional — it is how the project maintains reproducibility across long-running research cycles.
+
+## Semantic Versioning for Simulation Artifacts
+
+MCMG uses the `MAJOR.MINOR.PATCH` versioning scheme, adapted for simulation artifacts. A version string always appears as `vMAJOR.MINOR.PATCH` — for example, `v2.1.3`.
+
+<CardGroup cols={3}>
+  <Card title="MAJOR" icon="triangle-exclamation">
+    Incremented when a change breaks compatibility with prior versions. Consumers of the artifact must actively update their work to use the new version.
+  </Card>
+  <Card title="MINOR" icon="circle-plus">
+    Incremented when new capabilities, fields, or behaviors are added in a backward-compatible way. Existing consumers do not need to change anything.
+  </Card>
+  <Card title="PATCH" icon="wrench">
+    Incremented when a bug fix, clarification, or correction is applied that does not change the artifact's interface or documented behavior.
+  </Card>
+</CardGroup>
+
+All artifacts start at `v1.0.0`. There are no `v0.x` releases in production — pre-production work is tracked on feature branches with draft status and receives its initial version only upon first approval.
+
+---
+
+## What Triggers Each Increment
+
+Apply these rules consistently. When multiple change types occur in one release, use the highest applicable increment.
+
+### MAJOR Increments
+
+A MAJOR increment is required when:
+
+- A scenario's objective changes — even if the mechanics remain identical.
+- An entity type's attribute is removed or renamed.
+- A parameter's name, type, or valid range changes in a way that invalidates prior configurations.
+- A scenario's scope is narrowed or broadened such that prior results are no longer comparable.
+- The output format of a scenario changes in a way that breaks existing analysis pipelines.
+
+<Warning>
+  A MAJOR increment resets the MINOR and PATCH numbers to zero. `v1.4.2` becomes `v2.0.0`, not `v2.4.2` or `v2.4.3`.
+</Warning>
+
+### MINOR Increments
+
+A MINOR increment is required when:
+
+- A new optional attribute is added to an entity type.
+- A new optional parameter is added to a parameter set, with a safe default value.
+- A new output field is added to a scenario's results schema.
+- A new assumption or constraint is documented that was previously implicit.
+- A behavior is added that does not alter existing behavior for prior configurations.
+
+<Note>
+  "Safe default" means the parameter's default value produces output indistinguishable from the prior version's output when all other parameters remain unchanged. If you cannot guarantee this, treat the change as MAJOR.
+</Note>
+
+### PATCH Increments
+
+A PATCH increment is required when:
+
+- A bug in entity behavior is corrected and the corrected behavior matches the stated specification.
+- An inline comment or documentation field is corrected without changing any value or behavior.
+- A configuration validation rule is tightened to reject inputs that were already documented as invalid.
+- A performance optimization is applied that does not alter outputs.
+
+---
+
+## Branching Strategy
+
+Simulation artifacts follow a branch structure that mirrors the versioning scheme.
+
+<Steps>
+  <Step title="Feature Branches">
+    All new work begins on a feature branch named `artifact/<artifact-name>/feature/<short-description>`. This branch holds draft-status artifacts and is never merged directly to `main`.
+  </Step>
+  <Step title="Release Branches">
+    When an artifact is ready for review, a release branch is cut: `artifact/<artifact-name>/v<MAJOR>`. All MINOR and PATCH releases for that MAJOR version are merged into this branch. The release branch is merged to `main` only after final approval.
+  </Step>
+  <Step title="Main Branch">
+    The `main` branch contains only approved artifacts. Every commit to `main` corresponds to an approved version. No draft or in-review artifacts exist on `main`.
+  </Step>
+  <Step title="Hotfix Branches">
+    Critical PATCH fixes on an already-released version are developed on a hotfix branch: `artifact/<artifact-name>/hotfix/<short-description>`. Hotfix branches are merged directly to the relevant release branch and to `main` after expedited review.
+  </Step>
+</Steps>
+
+<Tip>
+  Keep feature branches short-lived. A feature branch that diverges significantly from the release branch produces large, difficult-to-review pull requests. Aim to merge or rebase at least once per week during active development.
+</Tip>
+
+---
+
+## Deprecation Policy
+
+Deprecation is the formal signal that an artifact version is no longer recommended for use and will eventually be removed. MCMG follows a structured deprecation process.
+
+### Marking an Artifact as Deprecated
+
+To deprecate an artifact version:
+
+1. Set its `status` field to `deprecated`.
+2. Add a `deprecated_in` field with the version number in which deprecation was announced.
+3. Add a `removed_in` field with the planned removal version (see retention rules below).
+4. Add a `superseded_by` field pointing to the recommended replacement version.
+5. Add a deprecation notice at the top of the artifact's documentation.
+
+```yaml
+status: deprecated
+deprecated_in: v2.0.0
+removed_in: v3.0.0
+superseded_by: logistics_route_optimization_v2.0.0
+```
+
+### Retention Rules
+
+| Artifact Type | Minimum Retention After Deprecation |
+|---------------|--------------------------------------|
+| Scenario definition | Two MAJOR versions |
+| Entity type definition | Two MAJOR versions |
+| Parameter set | One MAJOR version |
+| Output schema | Two MAJOR versions |
+
+<Info>
+  Retention periods are measured in MAJOR version increments of the artifact itself, not of the overall project. An artifact deprecated in `v1.x` is retained until `v3.0.0` of that same artifact — not until the project as a whole reaches a new major milestone.
+</Info>
+
+### Deprecation During the Retention Period
+
+During the retention period, deprecated artifacts:
+
+- Remain runnable and produce valid output.
+- Continue to receive PATCH fixes for critical bugs.
+- Do not receive MINOR or MAJOR enhancements.
+- Display a deprecation warning in simulation run logs.
+
+---
+
+## Changelog Requirements
+
+Every version release must include a changelog entry. The changelog lives in the artifact's documentation file under a `## Changelog` section, with entries in reverse chronological order.
+
+Each entry must record:
+
+| Field | Requirement |
+|-------|-------------|
+| Version | The full `vMAJOR.MINOR.PATCH` string |
+| Date | Release date in `YYYY-MM-DD` format |
+| Type | One of: `breaking`, `feature`, `fix`, `deprecation` |
+| Summary | One sentence describing the change |
+| Rationale | One to three sentences explaining why the change was made |
+| Migration note | Required for `breaking` changes — what consumers must do to update |
+
+**Example changelog entry:**
+
+```markdown
+### v2.0.0 — 2024-09-15
+
+**Type:** breaking
+
+**Summary:** Renamed the `max_speed_kmh` parameter to `max_vehicle_speed_kmh`.
+
+**Rationale:** The prior name was ambiguous in scenarios involving non-vehicle agents.
+Standardizing on the `max_<entity>_<quantity>_<unit>` pattern aligns with the
+parameter naming convention defined in the naming standards.
+
+**Migration:** Update all parameter files referencing `max_speed_kmh` to use
+`max_vehicle_speed_kmh`. The value and valid range are unchanged.
+```
+
+<Warning>
+  Changelog entries are required at the time of release, not retroactively. Pull requests that do not include a changelog entry for every version bump will be rejected at the peer review stage.
+</Warning>
+
+---
+
+## Compatibility Guarantees
+
+MCMG provides the following compatibility guarantees between versions:
+
+| From Version | To Version | Guarantee |
+|--------------|------------|-----------|
+| `vX.Y.Z` | `vX.Y+1.0` | Full backward compatibility. No changes required by consumers. |
+| `vX.Y.Z` | `vX.Y.Z+1` | Full backward compatibility. Output is identical for unchanged inputs. |
+| `vX.Y.Z` | `vX+1.0.0` | No compatibility guarantee. Migration notes are required and must be followed. |
+| `vX.Y.Z` | `vX-1.Y.Z` | No downgrade guarantee. Downgrading is unsupported and may produce invalid results. |
+
+<Note>
+  Compatibility guarantees apply to the documented interface of an artifact — the fields, parameters, and output schema described in its documentation. Internal implementation details that are not part of the documented interface carry no guarantee between any versions.
+</Note>
+
+---
+
+## Example Version History
+
+The table below illustrates a well-formed version history for a scenario, showing all three increment types and a deprecation.
+
+| Version | Date | Type | Summary |
+|---------|------|------|---------|
+| `v1.0.0` | 2023-03-01 | — | Initial approved release |
+| `v1.0.1` | 2023-03-18 | fix | Corrected agent respawn logic that caused duplicate IDs under high load |
+| `v1.1.0` | 2023-05-10 | feature | Added optional `priority_weighting` parameter with a safe default of `1.0` |
+| `v1.1.1` | 2023-06-02 | fix | Fixed off-by-one error in tick counter affecting run-length reporting |
+| `v2.0.0` | 2023-11-14 | breaking | Renamed `max_speed_kmh` to `max_vehicle_speed_kmh`; narrowed scope to exclude pedestrian agents |
+| `v2.1.0` | 2024-01-22 | feature | Added `enable_overflow_redistribution` parameter |
+| `v2.1.1` | 2024-02-08 | fix | Corrected output schema to include missing `agent_id` field in event records |
+| `v1.1.1` *(deprecated)* | 2024-02-08 | deprecation | Deprecated; superseded by `v2.1.1`; removal planned for `v3.0.0` |

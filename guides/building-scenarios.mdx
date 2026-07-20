@@ -1,0 +1,300 @@
+---
+title: "Build a Simulation Scenario from Start to Finish"
+sidebarTitle: "Building Scenarios"
+description: "Follow this step-by-step guide to design, define, and author a complete MCMG simulation scenario including entities, events, and parameters."
+---
+
+A simulation scenario is the fundamental unit of work in MCMG — it encapsulates a specific objective, a cast of entity types, a defined set of events and interactions, and the parameters that govern how the simulation unfolds. Writing a good scenario requires thinking carefully about scope and intent before touching a configuration file. This guide walks you through the full lifecycle of scenario authorship, from the initial design question all the way to handing a reviewed configuration off for its first execution run.
+
+## What Makes a Good Scenario
+
+Before diving into the steps, it helps to understand the characteristics that separate a well-constructed scenario from one that is difficult to run, interpret, or maintain.
+
+**A well-defined objective** — every scenario should answer a specific question or test a specific hypothesis. If you cannot write the objective in one or two sentences, the scenario scope is likely too broad.
+
+**Bounded scope** — the scenario contains exactly the entity types and events that are necessary to produce the outputs you care about. Entities and events that don't contribute to the objective add noise, increase runtime, and make results harder to interpret.
+
+**Realistic entities** — entity definitions should reflect realistic behavior and state constraints. Entities with unbounded state or unconstrained behavior make it impossible to reason about simulation outputs.
+
+**Reproducibility** — a scenario run with the same parameters and the same random seed should produce the same outputs every time. Design your scenarios to be deterministic unless non-determinism is explicitly part of what you are studying.
+
+<Note>
+Keep a short "scenario intent" note at the top of your scenario directory's `README.md`. Future readers — including future you — will thank you.
+</Note>
+
+---
+
+## Step 1: Define the Scenario Objective and Scope
+
+<Steps>
+  <Step title="Write the objective statement">
+    State clearly what you want to learn or demonstrate. A good objective statement names the system behavior under study, the conditions being applied, and the outcome you expect to observe. Write it down before opening any config file.
+
+    Example of a clear objective:
+    > "Measure how entity throughput changes as population size scales from 100 to 10,000 units under uniform load conditions, with a fixed interaction radius."
+
+    Example of an unclear objective:
+    > "See what happens when there are lots of entities."
+  </Step>
+
+  <Step title="Define the scenario boundary">
+    Identify what is inside and outside the scope of this scenario. List the entity types you will include, the events you will model, and explicitly note what you are intentionally leaving out. Document any simplifying assumptions you are making.
+  </Step>
+
+  <Step title="Identify required outputs">
+    Before building the scenario, know what outputs you need in order to evaluate the objective. This informs which metrics to enable and which state fields to expose in your entity definitions. Enabling outputs you don't need wastes storage and can significantly slow down large runs.
+  </Step>
+</Steps>
+
+---
+
+## Step 2: Identify and Design Required Entity Types
+
+Entities are the actors in a simulation. Each entity type defines a category of participant with a specific set of state fields, behaviors, and constraints.
+
+<Steps>
+  <Step title="List all entity roles">
+    Based on your objective, list every distinct role that a participant can play in the scenario. Two roles should become separate entity types if they have meaningfully different state fields or respond differently to the same event.
+  </Step>
+
+  <Step title="Define state fields for each type">
+    For each entity type, list the state fields it carries. Keep this list minimal — every field you add increases memory usage per entity, and that cost multiplies across potentially thousands of instances.
+
+    | Field attribute | Description |
+    |---|---|
+    | Name | Unique identifier for the field within the entity type |
+    | Type | Data type (integer, float, boolean, enum, reference) |
+    | Initial value | The value assigned when the entity is instantiated |
+    | Valid range | Minimum and maximum values or allowed enum members |
+    | Update trigger | What causes this field to change (event, time step, rule) |
+  </Step>
+
+  <Step title="Check the entity library for reusable archetypes">
+    Before writing a new entity definition from scratch, check the shared entity library under `entity-library/archetypes/`. If an archetype already exists that matches your needs — or can be extended rather than replaced — use it. This reduces maintenance burden and ensures your entities benefit from any future archetype improvements.
+  </Step>
+
+  <Step title="Document inter-entity relationships">
+    Note which entity types can interact with each other and what those interactions produce. This directly informs the event design in Step 3.
+  </Step>
+</Steps>
+
+---
+
+## Step 3: Define Events and Interaction Patterns
+
+Events drive state changes in the simulation. Each event has a trigger condition, one or more target entities, and an effect that modifies entity state.
+
+<Steps>
+  <Step title="List all events the scenario requires">
+    Start from the interactions you documented in Step 2. For each interaction, define the corresponding event. At minimum, each event needs a name, a trigger type, and a description of its effect.
+  </Step>
+
+  <Step title="Choose trigger types">
+    MCMG supports several trigger types:
+
+    | Trigger type | Description |
+    |---|---|
+    | `time-step` | Fires on every simulation time step |
+    | `scheduled` | Fires at a specific simulation time |
+    | `conditional` | Fires when a state expression evaluates to true |
+    | `entity-proximity` | Fires when two entities come within a defined range |
+    | `external` | Fired by an external input or another event |
+  </Step>
+
+  <Step title="Define event effects">
+    For each event, specify which state fields it modifies on which entity types, and how. Prefer deterministic effects unless the scenario objective specifically requires stochastic behavior.
+  </Step>
+
+  <Step title="Map event sequences">
+    Draw or write out the sequences of events that the scenario is expected to produce. This reveals any missing events, circular dependencies, or dead-end state transitions before you start writing configuration.
+  </Step>
+</Steps>
+
+---
+
+## Step 4: Set Initial Parameters and Boundary Conditions
+
+Parameters control the quantitative aspects of a scenario — population sizes, spatial bounds, time horizon, rate constants, and so on. Boundary conditions define the limits that constrain entity state and event propagation.
+
+<Steps>
+  <Step title="Define scenario-level parameters">
+    List every numeric or categorical parameter the scenario depends on. For each, document its name, default value, valid range, and unit. Parameters should be defined in a dedicated `params/` file rather than scattered through entity and event definitions.
+  </Step>
+
+  <Step title="Set boundary conditions">
+    Define the spatial, temporal, and state boundaries for the scenario. A simulation without clear boundaries will often produce nonsensical results at the edges — entities that leave a region and never return, time horizons that end before interesting behavior emerges, and so on.
+  </Step>
+
+  <Step title="Choose a default random seed">
+    Assign a fixed random seed to your scenario's default parameter set. This ensures that any colleague who runs the scenario with default parameters gets the same output you do, which is essential for reproducibility and peer review.
+  </Step>
+</Steps>
+
+---
+
+## Step 5: Author the Scenario Configuration File
+
+With the design work complete, you can now write the configuration file. The root configuration file for a scenario is `scenario.yaml` and lives at the root of the scenario's directory.
+
+<Steps>
+  <Step title="Create the scenario directory">
+    ```bash
+    mkdir -p scenarios/my-scenario-name/{entities,events,params}
+    touch scenarios/my-scenario-name/scenario.yaml
+    touch scenarios/my-scenario-name/README.md
+    ```
+  </Step>
+
+  <Step title="Author the root scenario file">
+    Use the following skeleton as your starting point. Every field shown is required unless marked optional.
+
+    ```yaml
+    # scenarios/my-scenario-name/scenario.yaml
+
+    scenario:
+      id: my-scenario-name              # Must be unique across all scenarios
+      version: "1.0.0"                  # Semantic version; increment on breaking changes
+      objective: >                      # Plain-language statement of intent
+        Describe what this scenario measures or demonstrates in one or two sentences.
+
+    simulation:
+      time:
+        start: 0
+        end: 3600                       # Simulation time units (interpret per project convention)
+        step: 1                         # Time step size
+      seed: 42                          # Default random seed for reproducibility
+      mode: single                      # single | batch | sweep
+
+    entities:
+      - ref: entities/agent.yaml        # Path relative to this scenario directory
+      - ref: entities/resource.yaml
+      # Add additional entity type references as needed
+
+    events:
+      - ref: events/interaction.yaml
+      - ref: events/spawn.yaml
+      # Add additional event references as needed
+
+    params:
+      default: params/default.yaml      # Required: the default parameter set
+      # optional:                       # Additional named parameter sets
+      #   large-scale: params/large.yaml
+
+    outputs:
+      metrics:
+        - entity_count_by_type
+        - event_rate_per_step
+        - state_distribution_summary
+      snapshots:
+        enabled: false                  # Set to true only if you need full state history
+      log_level: info                   # debug | info | warn | error
+    ```
+  </Step>
+
+  <Step title="Author entity definition files">
+    For each entity type referenced above, create a corresponding YAML file under `entities/`:
+
+    ```yaml
+    # scenarios/my-scenario-name/entities/agent.yaml
+
+    entity:
+      type: agent
+      archetype: entity-library/archetypes/mobile-actor.yaml   # optional base
+      population:
+        initial: 500                    # Starting number of instances
+        max: 10000                      # Hard ceiling on instance count
+      state:
+        - name: energy
+          type: float
+          initial: 1.0
+          range: [0.0, 1.0]
+        - name: status
+          type: enum
+          values: [active, idle, depleted]
+          initial: active
+      behaviors:
+        - ref: entity-library/behaviors/random-walk.yaml
+    ```
+  </Step>
+
+  <Step title="Author event definition files">
+    ```yaml
+    # scenarios/my-scenario-name/events/interaction.yaml
+
+    event:
+      name: entity-interaction
+      trigger:
+        type: entity-proximity
+        radius: 5.0                     # Distance threshold in scenario spatial units
+        participants: [agent, agent]    # Entity types involved
+      effect:
+        - target: initiator
+          field: energy
+          operation: decrement
+          value: 0.05
+        - target: receiver
+          field: energy
+          operation: decrement
+          value: 0.02
+    ```
+  </Step>
+
+  <Step title="Author the default parameter file">
+    ```yaml
+    # scenarios/my-scenario-name/params/default.yaml
+
+    params:
+      spatial_bounds:
+        x: [0, 1000]
+        y: [0, 1000]
+      agent_initial_population: 500
+      interaction_radius: 5.0
+      energy_decay_rate: 0.001
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+Run `mcmg validate --scenario my-scenario-name` after authoring each file to catch schema errors immediately rather than discovering them all at once before the first run.
+</Tip>
+
+---
+
+## Step 6: Peer Review Before First Run
+
+No scenario should be run at full scale before a peer has reviewed the configuration. A review takes far less time than diagnosing the outputs of a poorly designed run — or explaining to the team why a multi-hour batch job produced unusable results.
+
+<Steps>
+  <Step title="Open a review request">
+    Push your scenario directory to a branch in the repository and open a review request using your team's standard code review process. Include your objective statement and any design notes in the review description.
+  </Step>
+
+  <Step title="Reviewer checklist">
+    Ask your reviewer to verify the following:
+
+    - The objective is clear and the scenario scope matches it
+    - Entity state fields are minimal and correctly typed
+    - Event triggers are well-specified and effects are deterministic (or intentionally stochastic)
+    - Parameter ranges are realistic and boundary conditions are defined
+    - The random seed is set in the default parameter file
+    - No entity or event definition duplicates something already in the shared library
+    - Output configuration does not enable unnecessary fields
+  </Step>
+
+  <Step title="Revise and merge">
+    Address reviewer feedback, re-validate with `mcmg validate`, and merge to the main branch before scheduling any production-scale run.
+  </Step>
+</Steps>
+
+---
+
+## Common Mistakes and How to Avoid Them
+
+| Mistake | Impact | Prevention |
+|---|---|---|
+| Defining too many entity state fields | Higher memory usage, slower runs, noisier outputs | Review fields against the objective — remove anything not referenced by an event or output |
+| Missing random seed in the default params | Runs are not reproducible; colleagues get different results | Always set `seed` in `params/default.yaml` before peer review |
+| Redefining archetypes already in the entity library | Divergent behavior, duplicated maintenance | Check `entity-library/archetypes/` before writing new entity definitions |
+| Setting `snapshots.enabled: true` by default | Output size explodes on large runs | Only enable snapshots when full state history is required for the objective |
+| Overly broad time horizon | Runs take much longer than necessary | Estimate the time to steady-state behavior and cap the `end` value there |
+| Skipping peer review for "small" scenarios | Logic errors propagate to later, larger scenarios that build on this one | Treat the review step as non-negotiable regardless of scenario size |

@@ -1,0 +1,143 @@
+---
+title: "Simulation Parameter Reference and Default Values"
+sidebarTitle: "Parameters"
+description: "Reference listing of all MCMG simulation parameters, their types, default values, valid ranges, and guidance on when to override the defaults."
+---
+
+Parameters are named, typed values that control how MCMG resolves behaviours throughout a simulation run. Unlike configuration options — which determine how the engine operates — parameters live inside the simulation model itself and are passed into entity logic, behaviour rules, and event handlers. This reference lists every built-in parameter by category, explains how values propagate through the override chain, and describes what happens when a parameter falls outside its valid range.
+
+## Parameter Categories
+
+MCMG organises parameters into four categories based on scope and lifecycle. Parameters in a broader category serve as defaults for narrower categories, so you only need to specify a value where you want to deviate from the inherited default.
+
+- **Global parameters** apply to the entire simulation unless overridden at a lower level.
+- **Scenario parameters** apply to a specific scenario definition and override global defaults.
+- **Entity parameters** are set on individual entity types or instances and override scenario values.
+- **Run parameters** are supplied at launch time (typically on the command line) and override every other level.
+
+---
+
+## Global Parameters
+
+Global parameters establish the simulation-wide baseline. You define them in the `parameters` block of your scenario or global configuration file.
+
+| Name | Type | Default | Valid Range | Description |
+|---|---|---|---|---|
+| `global.time_unit` | string | `"seconds"` | `"seconds"`, `"minutes"`, `"hours"` | The real-world duration represented by one simulation time unit (STU). Affects how duration and timestep values are interpreted in reports. |
+| `global.spatial_dimensions` | integer | `2` | `2`, `3` | Number of spatial dimensions used for position and movement calculations. |
+| `global.gravity` | float | `9.81` | `≥ 0.0` | Gravitational acceleration applied to entities with physical mass, in units consistent with `global.time_unit`. Set to `0.0` for zero-gravity environments. |
+| `global.max_event_priority` | integer | `100` | `1 – 1000` | Highest legal event priority value. Events with priority above this value are clamped and a warning is emitted. |
+| `global.default_lifecycle` | string | `"standard"` | `"standard"`, `"transient"`, `"persistent"` | Default lifecycle mode assigned to new entities unless overridden by the entity type definition. |
+| `global.collision_detection` | boolean | `true` | `true`, `false` | Enables spatial collision detection for entities that occupy space. Disabling this can improve throughput when spatial interactions are not modelled. |
+| `global.interaction_radius` | float | `1.0` | `> 0.0` | Default radius (in spatial units) within which two entities are considered to be in proximity for interaction checks. |
+| `global.energy_model` | string | `"none"` | `"none"`, `"simple"`, `"thermodynamic"` | Energy bookkeeping model. `"none"` disables energy accounting entirely. `"simple"` tracks a scalar energy attribute per entity. `"thermodynamic"` enables full heat-transfer calculations. |
+
+---
+
+## Scenario Parameters
+
+Scenario parameters refine the global baseline for a specific scenario. They are defined in the `scenario.parameters` block of your scenario file and take precedence over global values with the same name.
+
+| Name | Type | Default | Valid Range | Description |
+|---|---|---|---|---|
+| `scenario.population_density` | float | `1.0` | `> 0.0` | Scaling factor applied to all entity spawn counts in this scenario. A value of `2.0` doubles the number of entities created by each spawn rule. |
+| `scenario.spawn_rate` | float | `1.0` | `> 0.0` | Multiplier on the base entity creation rate for all spawn events. Interact with `global.max_entities` to cap total population. |
+| `scenario.event_frequency_scale` | float | `1.0` | `> 0.0` | Scales the frequency of all scheduled events. Values below `1.0` make events rarer; values above `1.0` make them more frequent. |
+| `scenario.boundary_behaviour` | string | `"reflect"` | `"reflect"`, `"wrap"`, `"absorb"`, `"destroy"` | What happens when an entity moves outside the scenario boundary. `"destroy"` removes the entity; `"absorb"` stops it at the boundary; `"reflect"` reverses the velocity component normal to the boundary; `"wrap"` teleports it to the opposite side. |
+| `scenario.initial_state_file` | string | `""` | Valid file path or `""` | Path to a state snapshot file to use as the starting state. If empty, the scenario starts from a procedurally generated initial state. |
+| `scenario.warm_up_duration` | float | `0.0` | `≥ 0.0` | Duration (in STUs) of a warm-up period at the start of the run. Events and outputs during this period are still recorded but are flagged as warm-up data in reports. |
+| `scenario.interaction_model` | string | `"pairwise"` | `"pairwise"`, `"neighbourhood"`, `"broadcast"` | How entity interactions are resolved. `"pairwise"` checks every pair within interaction radius; `"neighbourhood"` uses spatial partitioning; `"broadcast"` notifies all entities simultaneously. |
+
+---
+
+## Entity Parameters
+
+Entity parameters are set on individual entity type definitions and on entity instances created at runtime. They override both global and scenario values for that entity alone.
+
+| Name | Type | Default | Valid Range | Description |
+|---|---|---|---|---|
+| `entity.mass` | float | `1.0` | `> 0.0` | Physical mass of the entity in model units. Used by the physics and energy models. |
+| `entity.max_speed` | float | `1.0` | `≥ 0.0` | Maximum movement speed in spatial units per STU. A value of `0.0` makes the entity stationary. |
+| `entity.perception_radius` | float | `5.0` | `≥ 0.0` | Radius within which the entity perceives other entities and environmental features. Overrides `global.interaction_radius` for perception-specific calculations. |
+| `entity.energy_capacity` | float | `100.0` | `> 0.0` | Maximum stored energy for entities using a non-`"none"` energy model. |
+| `entity.energy_consumption_rate` | float | `0.1` | `≥ 0.0` | Energy consumed per STU during normal activity. |
+| `entity.behaviour_weights` | object | `{}` | Key-value pairs, values `≥ 0.0` | Named weights that modulate the relative probability or influence of each behaviour in the entity's behaviour set. Keys must correspond to registered behaviour names. |
+| `entity.attribute_decay_rate` | float | `0.0` | `≥ 0.0` | Rate at which scalar attributes decay toward their minimum value per STU. Set to `0.0` to disable decay. |
+| `entity.respawn_on_destroy` | boolean | `false` | `true`, `false` | When `true`, the entity is automatically recreated at its spawn point with reset attributes when destroyed. |
+
+---
+
+## Run Parameters
+
+Run parameters are provided at launch time and override every other level in the chain. You typically supply them via command-line flags or environment variables rather than in configuration files.
+
+| Name | Type | Default | Valid Range | Description |
+|---|---|---|---|---|
+| `run.seed_override` | integer | `0` | Any integer | Overrides `scenario.seed`. A value of `0` leaves the scenario seed intact. |
+| `run.duration_override` | float | `0.0` | `> 0.0` or `0.0` to disable | Overrides `scenario.duration`. A value of `0.0` leaves the scenario duration intact. |
+| `run.fidelity_override` | string | `""` | `"low"`, `"medium"`, `"high"`, or `""` | Overrides `scenario.fidelity`. An empty string leaves the scenario fidelity intact. |
+| `run.output_dir_override` | string | `""` | Valid directory path or `""` | Overrides `output.directory`. Useful for batch runs where each trial needs a unique output location. |
+| `run.dry_run` | boolean | `false` | `true`, `false` | When `true`, the engine validates configuration and parameters, then exits without running the simulation. Use this to catch errors before committing compute resources. |
+| `run.profile` | boolean | `false` | `true`, `false` | Enables internal performance profiling. Profile data is written to the output directory alongside other results. |
+
+---
+
+## How Parameters Propagate
+
+MCMG resolves parameter values using a layered override chain evaluated from broadest to narrowest scope:
+
+```
+Global defaults
+  └── Scenario parameters  (override globals)
+        └── Entity parameters  (override scenario)
+              └── Run parameters  (override everything)
+```
+
+When the engine needs a parameter value for a specific entity at a specific point in time, it walks up this chain starting from the entity level and returns the first value it finds. If no value is set at any level, the documented default is used.
+
+You can inspect the fully resolved parameter set for any entity by enabling `debug`-level logging and examining the `parameter_resolution` log records emitted at entity creation time.
+
+### Overriding Parameters at Runtime
+
+Use the `--param` flag (or its environment-variable equivalent `MCMG_PARAM_<NAME>`) to supply run-level overrides without modifying any configuration file:
+
+```bash
+# Override seed and fidelity for a single trial
+mcmg run --config ./scenarios/baseline.yaml \
+         --param run.seed_override=99 \
+         --param run.fidelity_override=high
+```
+
+For batch parameter sweeps, the recommended approach is to generate a set of override files programmatically and pass a different one to each parallel run. See the [Outputs & Metrics](/reference/outputs-and-metrics) reference for guidance on organising batch output directories.
+
+---
+
+## Parameter Validation
+
+The engine validates all parameters during the startup phase, before the simulation clock advances. Validation rules:
+
+- **Type mismatch** — A `string` value supplied for a numeric parameter raises a fatal error and halts the run.
+- **Out-of-range value** — A value outside the documented valid range raises a fatal error with a message identifying the parameter and the violated bound.
+- **Unknown parameter** — An unrecognised parameter name produces a warning and is ignored. This allows forward compatibility with newer configuration files on older engine versions.
+- **Missing required parameter** — Required parameters (those without a default) that are absent at all levels raise a fatal error listing every missing name.
+
+All validation errors are reported together in a single pass rather than stopping at the first failure, so you can correct multiple issues at once.
+
+---
+
+## Reserved Parameter Names
+
+The following parameter names are reserved for internal engine use. You must not define parameters with these names in your scenario or entity configuration, as doing so will conflict with built-in engine state and produce undefined behaviour.
+
+| Reserved Name | Reason |
+|---|---|
+| `_engine.tick` | Current simulation tick counter |
+| `_engine.clock` | Current simulation time in STUs |
+| `_engine.entity_count` | Live entity count at the current tick |
+| `_engine.event_count` | Cumulative events processed |
+| `_engine.run_id` | Unique identifier for the current run |
+| `_entity.id` | Unique entity identifier assigned at creation |
+| `_entity.created_at` | Simulation time at which the entity was created |
+| `_entity.destroyed_at` | Simulation time at which the entity was destroyed, if applicable |
+
+Any attempt to set a reserved parameter raises a fatal configuration error.

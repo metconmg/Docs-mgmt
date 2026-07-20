@@ -1,0 +1,111 @@
+---
+title: "Simulation Fundamentals: Core Principles Explained"
+sidebarTitle: "Fundamentals"
+description: "Explore the foundational principles that underpin every MCMG simulation, from discrete-event modeling to fidelity levels and simulation lifecycle."
+---
+
+Every MCMG simulation is built on a shared set of principles that govern how models are constructed, how time advances, and how results can be trusted and repeated. Before you configure a scenario or analyze output, understanding these foundations will save you significant debugging time and help you make informed trade-offs when designing large-scale runs.
+
+## What Is a Simulation?
+
+In the MCMG context, a simulation is a controlled, executable model of a system that evolves over time according to defined rules. Rather than observing a real-world system directly, you describe its components, their behaviors, and their interactions — then let the engine drive the model forward and capture what happens.
+
+MCMG supports three modeling paradigms, and most real-world scenarios blend more than one:
+
+| Paradigm | How Time Advances | Best Suited For |
+|---|---|---|
+| **Discrete-Event** | Jumps from event to event; no processing between events | Queuing systems, logistics, network traffic |
+| **Agent-Based** | Steps forward in regular increments; each agent acts independently | Crowd behavior, market dynamics, autonomous systems |
+| **Hybrid** | Combines both; some components are event-driven, others tick-based | Complex operational environments with both flow and decision logic |
+
+Choosing the right paradigm shapes every downstream decision — from how you define entity behaviors to how long a run takes to complete.
+
+## Fidelity Levels
+
+Fidelity describes how closely a simulation's behavior matches the real system it represents. Higher fidelity produces more accurate results but requires more data, more compute, and more development effort. MCMG formalizes three levels to help you make deliberate trade-offs.
+
+<CardGroup cols={3}>
+  <Card title="High Fidelity" icon="crosshairs">
+    Models fine-grained physics, detailed decision logic, and rich entity state. Use this when accuracy is paramount — for validation studies, certification runs, or final analysis. Expect longer runtimes and higher resource consumption.
+  </Card>
+  <Card title="Medium Fidelity" icon="sliders">
+    Approximates key behaviors while omitting secondary effects. The practical default for iterative development and exploratory analysis. Balances accuracy against throughput.
+  </Card>
+  <Card title="Low Fidelity" icon="gauge">
+    Abstracts heavily, often reducing entities to simple state machines. Use for rapid prototyping, parameter sweeps over large design spaces, or generating training data at scale.
+  </Card>
+</CardGroup>
+
+<Tip>
+  Start at low or medium fidelity during the design phase and increase fidelity incrementally as your scenario stabilizes. Jumping straight to high fidelity before the scenario logic is validated wastes compute and makes debugging harder.
+</Tip>
+
+## The Simulation Lifecycle
+
+Every MCMG project moves through a defined lifecycle. Understanding where you are in that lifecycle helps you apply the right tools and avoid premature optimization.
+
+<Steps>
+  <Step title="Design">
+    Define the purpose of the simulation, the system boundaries, and the key questions you want to answer. Document your assumptions explicitly — they become the basis for validation later. Choose your modeling paradigm and target fidelity level.
+  </Step>
+  <Step title="Build">
+    Author the scenario, define entity types and behaviors, configure the event bus, and wire up any external data sources. This is where MCMG's scenario schema and configuration files are written and validated against the schema.
+  </Step>
+  <Step title="Validate">
+    Verify that your model behaves as intended. Run unit checks on individual entity behaviors, compare aggregated outputs against known reference data, and confirm that edge cases (empty queues, simultaneous events, entity destruction) are handled correctly.
+  </Step>
+  <Step title="Run">
+    Execute the simulation — either as a single deterministic run or as a batch of replications with varied seeds. Monitor resource utilization and check for warnings in the engine log that may indicate logic errors or performance bottlenecks.
+  </Step>
+  <Step title="Analyze">
+    Process the output data: event logs, state snapshots, and aggregated metrics. Compare results across replications, compute confidence intervals, and draw conclusions tied back to the questions you posed in the design phase.
+  </Step>
+</Steps>
+
+<Note>
+  The lifecycle is iterative, not strictly linear. Findings during analysis frequently surface design issues that require you to return to an earlier phase. Build that expectation into your project timeline.
+</Note>
+
+## Core Principles
+
+Four principles are embedded throughout the MCMG platform. Violating any of them — intentionally or by accident — undermines the value of your results.
+
+### Reproducibility
+
+A simulation run must produce the same outputs whenever you supply the same inputs and the same random seed. MCMG enforces this by capturing all inputs — including parameter files, scenario configuration, and the engine version — in a run manifest that is stored alongside outputs. If you cannot reproduce a result, you cannot trust it.
+
+### Determinism
+
+Determinism is the mechanism behind reproducibility. The engine processes events in a strictly ordered sequence. Tie-breaking rules handle simultaneous events consistently. No sources of external non-determinism (system clocks, unseeded random draws, network state) are permitted to influence the simulation state.
+
+### Scalability
+
+MCMG is designed for large-scale runs involving many entities, long simulated time horizons, or high event volumes. The architecture partitions state, distributes event processing, and manages memory explicitly to keep performance predictable as scale grows. Your scenario design choices — entity granularity, event frequency, output verbosity — have direct consequences on runtime.
+
+### Separation of Concerns
+
+Scenario authors define *what* the simulation represents. The engine defines *how* it executes. This separation means you can update a scenario without touching the engine, swap fidelity configurations without rewriting behaviors, and compare outputs across engine versions with confidence.
+
+## Unique Challenges at Large Scale
+
+Running simulations with thousands of entities or billions of simulated timesteps introduces problems that do not appear in small-scale prototypes.
+
+<Accordion title="State Management">
+  As entity count grows, the total simulation state — all entity attributes, relationship graphs, and in-flight events — can exceed available memory on a single node. MCMG addresses this through partitioned state stores and lazy loading of entity detail, but your schema design directly affects how efficiently state can be managed. Minimize per-entity attribute footprint where possible and avoid storing redundant derived values in entity state.
+</Accordion>
+
+<Accordion title="Coordination Overhead">
+  In distributed runs, engine workers must coordinate to advance simulation time safely without violating causality. Coordination messages consume bandwidth and introduce latency. The lookahead parameter — the minimum time an entity can affect another entity in the future — controls how far workers can advance independently. A poorly chosen lookahead causes excessive synchronization barriers and degrades throughput.
+</Accordion>
+
+<Accordion title="Output Volume">
+  A high-fidelity run with many entities generates event logs and state snapshots at a rate that can overwhelm storage and analysis pipelines. Plan your output strategy before you run: decide which events warrant full records, which can be aggregated in-flight, and which can be discarded after a summary statistic is computed.
+</Accordion>
+
+<Accordion title="Validation Complexity">
+  Validating that a large-scale scenario behaves correctly is harder than validating a small one. Emergent behaviors — patterns that arise from entity interactions rather than individual rules — may only appear at scale. Build validation checkpoints that examine aggregate statistics over time, not just end-state summaries.
+</Accordion>
+
+<Warning>
+  Never skip the validation phase on the grounds that "the scenario looked right in small tests." Bugs in entity logic or event handling routinely hide at low entity counts and surface only when interaction density increases.
+</Warning>

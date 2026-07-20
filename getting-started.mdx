@@ -1,0 +1,103 @@
+---
+title: "Get Started with the MCMG Simulation Project"
+sidebarTitle: "Get Started"
+description: "Learn how to orient yourself within the MCMG Simulation Knowledge Base and find the resources you need as a new contributor or reviewer."
+---
+
+Welcome to the MCMG Simulation Knowledge Base — the central reference for everyone involved in building, reviewing, and managing simulations across the MCMG project. Whether you are a simulation designer authoring new scenarios, a domain expert providing technical review, a QA reviewer validating behavior, or a project lead tracking progress, this knowledge base gives you structured access to the processes, standards, and reference materials that keep the project running consistently. Take a few minutes to read through this page so you know where things live and how to find what you need quickly.
+
+## Who This Knowledge Base Is For
+
+The MCMG Knowledge Base is designed to serve several distinct roles, each with different priorities and entry points. Understanding which role fits your work will help you navigate directly to the most relevant content.
+
+<Tabs>
+  <Tab title="Simulation Designers">
+    Simulation designers are responsible for authoring, structuring, and iterating on simulation scenarios. Your primary references are the scenario authoring guidelines, the design standards library, and the component reuse catalog. Start with the Project Scope page to align on objectives, then move into the authoring workflow documentation before opening any scenario file.
+
+    <Tip>
+      Bookmark the design standards library early. Consistent application of those standards is one of the most common review checkpoints, and catching deviations before submission saves significant revision cycles.
+    </Tip>
+  </Tab>
+  <Tab title="Scenario Authors">
+    Scenario authors focus on the narrative, instructional, and decision-tree layers of each simulation. Your work sits at the intersection of subject matter expertise and structured content design. Pay particular attention to the branching logic guidelines and the content review checklist, which defines what reviewers will examine before a scenario advances.
+  </Tab>
+  <Tab title="QA Reviewers">
+    QA reviewers validate that completed simulations meet functional, behavioral, and standards-compliance requirements. Your starting point is the definition of done criteria outlined in the Project Scope, followed by the QA review workflow and the defect classification guide. Familiarize yourself with the acceptance criteria for each simulation type before beginning a review cycle.
+
+    <Warning>
+      Do not mark a simulation as passing review if any severity-one defects remain open. The defect classification guide defines severity levels and the escalation path for disputed classifications.
+    </Warning>
+  </Tab>
+  <Tab title="Project Leads">
+    Project leads use this knowledge base to track scope boundaries, monitor milestone definitions, and communicate status to stakeholders. The Project Scope page and the milestone tracking guidelines are your primary references. The stakeholder roles section describes decision rights and escalation paths for scope changes.
+  </Tab>
+</Tabs>
+
+## What the MCMG Project Is and Why It Exists
+
+MCMG is a large-scale simulation development initiative created to produce a comprehensive, reusable library of high-fidelity simulations for training, assessment, and operational rehearsal purposes. The project exists because fragmented, one-off simulation development had produced inconsistent quality, duplicated effort, and content that could not be easily updated or repurposed across contexts. MCMG establishes shared standards, repeatable workflows, and a governed content pipeline to address those problems at scale.
+
+The simulations produced by this project are intended to be modular, accessible, and maintainable over time — not disposable artifacts built for a single use. Every decision in the design and authoring process should reflect that long-term orientation.
+
+<Info>
+  The knowledge base itself follows the same principles as the simulations it supports: it is a living document, updated as standards evolve and as the team learns from completed work. If you find content that appears outdated or contradicts your current understanding, use the feedback process described at the bottom of any page to flag it for review.
+</Info>
+
+## How to Navigate This Knowledge Base
+
+The knowledge base is organized into several major sections, each covering a distinct phase or domain of the project. The left sidebar reflects this structure and is your primary navigation tool. Within long pages, the right-side table of contents lets you jump directly to a specific section.
+
+<Steps>
+  <Step title="Orient yourself with the project scope">
+    Before diving into any workflow documentation, read the Project Scope page. It defines the objectives, boundaries, and success criteria that all other content is anchored to. Understanding what is explicitly out of scope is just as important as understanding what is in scope.
+  </Step>
+  <Step title="Identify your role and primary workflows">
+    Use the role descriptions above to locate the workflows most relevant to your contribution type. Each major workflow page lists its prerequisites, so you will know if there is earlier reading to complete first.
+  </Step>
+  <Step title="Reference the standards library as you work">
+    The design standards and content guidelines are reference material — you will return to them repeatedly throughout a project, not just during onboarding. Keep the standards library accessible while you are actively designing or reviewing.
+  </Step>
+  <Step title="Use search for cross-cutting topics">
+    Some topics — accessibility requirements, localization considerations, version control practices — appear across multiple sections. The search function at the top of the page is the fastest way to locate all mentions of a specific term or concept.
+  </Step>
+  <Step title="Check the changelog for recent updates">
+    The knowledge base changelog records what has changed, when, and why. If a process you followed previously now seems to contradict what you are reading, the changelog will usually explain the discrepancy.
+  </Step>
+</Steps>
+
+<Note>
+  If you are onboarding to the project for the first time, complete the full getting-started reading sequence before beginning any active contribution work. Skipping ahead to workflow documentation without the foundational context often leads to rework.
+</Note>
+
+## Key Sections at a Glance
+
+Use the cards below to jump directly to the major areas of the knowledge base. Each section has its own landing page that introduces the content and points you to the right starting document for your role.
+
+<CardGroup cols={2}>
+  <Card title="Project Scope" icon="bullseye" href="/project-scope">
+    Understand the objectives, boundaries, stakeholder roles, and success criteria that define the MCMG project. Essential reading before any active contribution.
+  </Card>
+  <Card title="Building Scenarios" icon="pen-to-square" href="/guides/building-scenarios">
+    Step-by-step guidance for designing and writing simulation scenarios, including entity design, event definitions, and parameter configuration.
+  </Card>
+  <Card title="Design Standards" icon="ruler-combined" href="/standards/naming-conventions">
+    The canonical reference for naming, documentation, and versioning standards that all simulation artifacts must meet before review.
+  </Card>
+  <Card title="Review Process" icon="circle-check" href="/standards/review-process">
+    The end-to-end review and approval workflow, including checklists, stage definitions, and escalation paths for simulation artifacts.
+  </Card>
+  <Card title="Core Concepts" icon="cubes" href="/concepts/simulation-fundamentals">
+    Foundational concepts covering simulation architecture, entities, agents, time management, and the MCMG data model.
+  </Card>
+  <Card title="Reference" icon="chart-gantt" href="/reference/configuration">
+    Configuration files, parameter listings, output formats, and the full project glossary.
+  </Card>
+</CardGroup>
+
+## Getting Help
+
+If you cannot find what you need in the knowledge base, or if you encounter content that appears incorrect or incomplete, you have several options. Each page includes a feedback mechanism that routes comments to the knowledge base maintenance team. For urgent process questions, reach out through the project's designated communication channel for your team. For scope or standards disputes that cannot be resolved at the team level, the escalation process is documented in the Project Management section.
+
+<Tip>
+  The most common onboarding friction point is not knowing which document takes precedence when two sources seem to conflict. As a general rule, the more specific document wins: a scenario-type-specific guideline overrides a general authoring guideline, and a project-level decision overrides a general standard. The Project Scope page documents the full precedence hierarchy.
+</Tip>

@@ -1,0 +1,191 @@
+---
+title: "Naming Conventions for Simulation Artifacts"
+sidebarTitle: "Naming Conventions"
+description: "The official MCMG naming conventions for scenarios, entities, events, parameters, and output files — ensuring consistency across the project."
+---
+
+Consistent naming is the foundation of a maintainable simulation project. When every artifact follows a shared convention, contributors can locate files, understand intent, and avoid collisions without needing to ask anyone. This page defines the official MCMG naming conventions for all simulation artifacts — scenarios, entity types, events, parameters, and output files. Treat these rules as mandatory, not advisory.
+
+## General Principles
+
+Before diving into category-specific rules, internalize these project-wide principles. They apply everywhere a name appears.
+
+<CardGroup cols={3}>
+  <Card title="Clarity Over Brevity" icon="eye">
+    A name should communicate its purpose immediately. Prefer a longer, readable name over a terse one that requires context to decode.
+  </Card>
+  <Card title="Global Uniqueness" icon="fingerprint">
+    No two artifacts of the same type may share a name, even across domains. Duplicate names cause merge conflicts, confusion in logs, and broken cross-references.
+  </Card>
+  <Card title="Approved Abbreviations Only" icon="list-check">
+    Do not invent abbreviations. Use the full word unless the abbreviation appears on the project-maintained Approved Abbreviations List (AAL). When in doubt, spell it out.
+  </Card>
+</CardGroup>
+
+<Note>
+  The Approved Abbreviations List is maintained in the project wiki and is updated quarterly. Propose new abbreviations through the standard review process before using them in artifact names.
+</Note>
+
+---
+
+## Scenario Naming
+
+Scenarios follow a structured three-part pattern that encodes domain, objective, and version into the name itself.
+
+**Pattern:** `<domain>_<objective>_<version>`
+
+- **`<domain>`** — A lowercase token from the canonical domain registry (e.g., `logistics`, `climate`, `urban`). Never invent a new domain token without registering it first.
+- **`<objective>`** — A short snake_case phrase describing the primary goal of the scenario (e.g., `route_optimization`, `flood_response`).
+- **`<version>`** — A semantic version string prefixed with `v` (e.g., `v1.0.0`). See the [Versioning](/standards/versioning) page for increment rules.
+
+**Full example:** `logistics_route_optimization_v2.1.0`
+
+| Good | Bad | Why Bad |
+|------|-----|---------|
+| `climate_heatwave_response_v1.0.0` | `climate_hw_resp_v1` | Unapproved abbreviations; incomplete version |
+| `urban_traffic_flow_v3.2.1` | `UrbanTrafficFlow_3.2.1` | Wrong case; missing domain separator |
+| `logistics_depot_placement_v1.0.0` | `scenario_logistics_01` | Generic prefix adds no information |
+| `energy_grid_failover_v2.0.0` | `energy-grid-failover-v2` | Hyphens are not valid in scenario names |
+
+<Tip>
+  If your objective phrase exceeds four words, reconsider whether the scenario is too broad. A well-scoped scenario typically needs only two or three words to describe its objective.
+</Tip>
+
+---
+
+## Entity Type Naming
+
+Entity types represent classes of simulated objects — vehicles, agents, facilities, resources. They are named in **PascalCase** using noun phrases.
+
+**Rules:**
+- Use a noun or noun phrase that names the category of thing, not its behavior.
+- Do not prefix with `Entity`, `Object`, or `Type` — these are redundant.
+- Compound nouns should be joined directly without separators: `SupplyDepot`, not `Supply_Depot`.
+
+| Good | Bad | Why Bad |
+|------|-----|---------|
+| `EvacuationVehicle` | `evacuation_vehicle` | snake_case is not valid for entity types |
+| `SupplyDepot` | `SupplyDepotEntity` | Redundant `Entity` suffix |
+| `EmergencyResponder` | `EmerResp` | Unapproved abbreviation |
+| `WaterTreatmentFacility` | `WTF` | Unapproved abbreviation; also ambiguous |
+| `ResidentialZone` | `zone_residential` | Wrong case and word order |
+
+---
+
+## Event Naming
+
+Events represent things that happen during a simulation run — state changes, triggers, notifications. Name them as **PastTense verb phrases** in PascalCase.
+
+**Rules:**
+- Start with a past-tense verb (e.g., `Completed`, `Detected`, `Failed`, `Triggered`).
+- Follow with a noun phrase describing what was affected.
+- Do not use present-tense or infinitive forms.
+
+| Good | Bad | Why Bad |
+|------|-----|---------|
+| `RouteRecalculated` | `RecalculateRoute` | Imperative form; not past tense |
+| `DepotCapacityExceeded` | `DepotOverflow` | Noun phrase; not a verb phrase |
+| `AgentDeployed` | `deploy_agent` | snake_case; wrong tense |
+| `FloodZoneActivated` | `FloodZoneActive` | Adjective, not past tense |
+| `ResourceRequestFulfilled` | `ResourceFulfill` | Truncated; missing noun context |
+
+<Note>
+  Events that represent failures should end in `Failed`, not `Error` or `Exception`. For example: `RouteCalculationFailed`, not `RouteCalculationError`.
+</Note>
+
+---
+
+## Parameter Naming
+
+Configuration and simulation parameters use **snake_case** exclusively. This matches the format expected by the simulation engine's configuration parser.
+
+**Rules:**
+- All lowercase; words separated by underscores.
+- Be specific: `max_vehicle_speed_kmh` is better than `max_speed`.
+- Include units in the name when the parameter represents a physical quantity (e.g., `_kmh`, `_meters`, `_seconds`, `_percent`).
+- Boolean parameters should be phrased as statements: `enable_logging`, not `logging_enabled` or `is_logging`.
+
+| Good | Bad | Why Bad |
+|------|-----|---------|
+| `max_vehicle_speed_kmh` | `maxVehicleSpeed` | camelCase is not valid for parameters |
+| `enable_real_time_updates` | `realTimeUpdates` | Missing `enable_` prefix for booleans |
+| `flood_depth_threshold_meters` | `floodThresh` | Missing units; unapproved abbreviation |
+| `simulation_tick_interval_seconds` | `tick` | Too vague; no units |
+| `agent_respawn_delay_seconds` | `AgentRespawnDelay` | PascalCase is not valid for parameters |
+
+---
+
+## File Naming
+
+All files — scenario definitions, entity specs, parameter sets, output logs, and documentation — use **kebab-case** with a defined extension.
+
+**Rules:**
+- All lowercase; words separated by hyphens.
+- Use only the extensions listed in the table below.
+- Include the version in the filename for versioned artifacts.
+- Output files must include a timestamp in `YYYYMMDD` format immediately before the extension.
+
+**Standard Extensions**
+
+| File Type | Extension |
+|-----------|-----------|
+| Scenario definition | `.scenario.yaml` |
+| Entity type definition | `.entity.yaml` |
+| Parameter set | `.params.yaml` |
+| Simulation output log | `.output.json` |
+| Documentation | `.mdx` |
+| Test fixture | `.fixture.yaml` |
+
+**Examples:**
+
+| Good | Bad | Why Bad |
+|------|-----|---------|
+| `climate-heatwave-response-v1.0.0.scenario.yaml` | `ClimateHeatwaveResponse.yaml` | PascalCase; missing type segment |
+| `evacuation-vehicle.entity.yaml` | `evacuationVehicle_entity.yaml` | Mixed case; wrong separator |
+| `route-params-v2.1.0.params.yaml` | `route_params.yaml` | Underscore separator; missing type/version |
+| `run-output-20241105.output.json` | `output.json` | No date; no descriptor |
+
+<Warning>
+  Never include spaces, special characters (`@`, `#`, `!`, `$`), or uppercase letters in file names. The simulation pipeline is case-sensitive and will fail to resolve files that do not match their registered names exactly.
+</Warning>
+
+---
+
+## Version Suffixes
+
+Version suffixes appear in scenario names, parameter filenames, and entity definition filenames. They follow the `vMAJOR.MINOR.PATCH` format defined in the [Versioning](/standards/versioning) page.
+
+**When to include a version suffix:**
+- Always include it on scenario names.
+- Always include it on entity definition files and parameter set files.
+- Omit it from output files (use a date stamp instead).
+- Omit it from documentation files unless the document describes a specific version of an artifact.
+
+**Format rules:**
+- Always prefix with lowercase `v`.
+- All three segments are required: `v1.0.0`, not `v1` or `v1.0`.
+- Use a dot separator, never a dash or underscore: `v2.1.0`, not `v2-1-0` or `v2_1_0`.
+
+---
+
+## Anti-Patterns
+
+Avoid these patterns. They have appeared in the project history and caused real problems.
+
+<Warning>
+  The following naming patterns are explicitly banned. Pull requests that introduce these patterns will be rejected at the review stage.
+</Warning>
+
+| Anti-Pattern | Example | Problem |
+|--------------|---------|---------|
+| Generic numeric suffixes | `scenario_01`, `entity_02` | Conveys no information; breaks when renumbered |
+| Date-based names on definitions | `route-params-2024.yaml` | Dates belong on outputs, not definitions |
+| Duplicating the type in the name | `ScenarioRouteOpt` | The file extension already conveys type |
+| Using "temp", "new", or "final" | `params-final-v2-new.yaml` | These labels are always stale |
+| Mixing naming styles | `Climate_heatwaveResponse` | Inconsistent case signals unclear ownership |
+| Acronyms not on the AAL | `MCAR`, `RDEF`, `EPT` | Opaque to new contributors |
+| Overly generic names | `main`, `default`, `base` | Ambiguous across domains and scenarios |
+
+<Tip>
+  If you find yourself adding `_new`, `_final`, or `_v2_revised` to a name, that is a signal to go through the proper versioning process instead.
+</Tip>

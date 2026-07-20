@@ -1,0 +1,183 @@
+---
+title: "MCMG Project Scope, Goals, and Stakeholder Roles"
+sidebarTitle: "Project Scope"
+description: "Defines the objectives, boundaries, stakeholder roles, and success criteria for the MCMG large-scale simulation development project."
+---
+
+The MCMG simulation development project is a structured, governed initiative to produce a durable library of high-fidelity simulations used for training, assessment, and operational rehearsal. This page defines the full scope of that effort — what the project is trying to achieve, where its boundaries lie, who holds responsibility for each part of the work, and how the team determines when a simulation is genuinely complete. Reading this page in full gives you the foundation you need to make consistent decisions throughout the design, authoring, and review process.
+
+## Project Objectives and Goals
+
+The MCMG project was established to solve a specific, recurring problem: simulations built in isolation tend to diverge in quality, format, and reusability, creating maintenance burdens and inconsistent learner experiences over time. MCMG addresses this by establishing shared infrastructure — standards, workflows, reusable components, and a governed review pipeline — that all simulations are built against.
+
+The project pursues four interconnected objectives:
+
+<Accordion title="Objective 1 — Consistent Quality Across All Simulations">
+  Every simulation produced under MCMG must meet the same baseline quality bar regardless of which team authored it, which subject matter domain it covers, or which delivery format it targets. Consistent quality is achieved through design standards, mandatory review gates, and a shared definition of done that applies universally. Individual teams may apply stricter local standards, but they may not apply looser ones.
+</Accordion>
+
+<Accordion title="Objective 2 — Modularity and Long-Term Reusability">
+  Simulations are designed as modular systems, not monolithic artifacts. Scenarios, interaction patterns, branching logic structures, and media assets are built to be reused, recombined, and updated independently. This reduces duplication of effort and makes the library maintainable as requirements evolve.
+</Accordion>
+
+<Accordion title="Objective 3 — Scalable, Repeatable Production Workflow">
+  The production process itself is a deliverable. MCMG defines and continuously refines the authoring workflow, review cadence, and handoff procedures so that the team can produce simulations at a consistent pace without quality degrading as volume increases. New contributors should be able to onboard into the workflow without requiring extensive one-on-one guidance.
+</Accordion>
+
+<Accordion title="Objective 4 — Traceability from Requirements to Outcomes">
+  Every simulation must be traceable back to a documented requirement or operational need, and forward to a measurable outcome or acceptance criterion. This traceability ensures the library remains purposeful and gives stakeholders a clear basis for prioritization decisions.
+</Accordion>
+
+## Scope Boundaries
+
+Understanding what the MCMG project covers — and what it explicitly does not cover — prevents scope creep, sets accurate expectations for stakeholders, and helps teams make faster decisions when edge cases arise.
+
+### In Scope
+
+<CardGroup cols={2}>
+  <Card title="Simulation Design & Authoring" icon="pen-nib">
+    The full lifecycle of scenario creation: requirements intake, design, content authoring, branching logic development, media integration, and internal review.
+  </Card>
+  <Card title="Standards Development & Maintenance" icon="book-open">
+    Authoring, publishing, and iterating on the design standards, content guidelines, accessibility requirements, and component specifications that govern all simulations.
+  </Card>
+  <Card title="QA and Review Pipeline" icon="magnifying-glass-chart">
+    The structured review and validation process, including functional testing, standards compliance checking, and stakeholder acceptance sign-off.
+  </Card>
+  <Card title="Component Library Governance" icon="layer-group">
+    Maintaining the catalog of approved, reusable simulation components, interaction patterns, and templates, including versioning and deprecation management.
+  </Card>
+  <Card title="Onboarding and Contributor Guidance" icon="person-chalkboard">
+    Documentation, training materials, and reference resources that enable new contributors to work effectively within the MCMG standards and workflow.
+  </Card>
+  <Card title="Reporting and Milestone Tracking" icon="chart-line">
+    Progress tracking, milestone reporting, and status communication to project stakeholders at all levels.
+  </Card>
+</CardGroup>
+
+### Out of Scope
+
+<Warning>
+  The following areas are explicitly outside the MCMG project boundary. Requests or contributions that fall into these categories should be redirected to the appropriate team or initiative rather than incorporated into MCMG deliverables.
+</Warning>
+
+- **Deployment and hosting infrastructure** — The systems and platforms that deliver simulations to end users are managed by a separate infrastructure team. MCMG produces simulation content and packages it to specification; it does not own the delivery environment.
+- **End-user support and helpdesk** — Learner-facing technical support, account management, and access provisioning are handled outside this project.
+- **Curriculum sequencing and learning pathway design** — MCMG produces individual simulations and simulation modules. Decisions about how those modules are sequenced within a broader curriculum belong to instructional program owners, not the MCMG team.
+- **Live facilitation and instructor-led delivery** — The project produces self-contained simulations. Facilitated or instructor-led variants are out of scope unless explicitly included in a simulation's approved requirements.
+- **Post-deployment analytics and reporting** — Usage data, learner performance analytics, and outcomes reporting after a simulation goes live are managed by the data and analytics function, not MCMG.
+- **Procurement and vendor management** — Licensing, contracting, and vendor relationships are handled by the appropriate operational and procurement teams.
+
+<Note>
+  If you believe a specific piece of work sits in a gray area between in-scope and out-of-scope, escalate to your project lead before beginning the work. Attempting to resolve ambiguous scope informally often creates rework and misaligned expectations downstream.
+</Note>
+
+## Stakeholder Roles and Responsibilities
+
+The MCMG project involves several distinct roles, each with defined responsibilities and decision rights. Clear role definition prevents duplicated effort, reduces bottlenecks, and ensures accountability at every stage of the simulation lifecycle.
+
+<Tabs>
+  <Tab title="Simulation Designers">
+    Simulation designers own the structural and experiential design of each simulation. They translate requirements and learning objectives into scenario architecture, interaction patterns, and branching logic. Designers are responsible for applying MCMG design standards throughout the authoring process and for resolving design-level feedback raised during review.
+
+    **Key responsibilities:**
+    - Translate approved requirements into simulation design documents
+    - Author and iterate on scenario structure, branching logic, and interaction design
+    - Apply design standards and flag ambiguities or gaps to the standards team
+    - Respond to and resolve design-level review comments before advancing a simulation
+    - Contribute component candidates to the reuse library when novel patterns are developed
+
+    **Decision rights:** Simulation designers make final calls on design implementation within the boundaries set by approved standards. Deviations from standards require documented rationale and sign-off from the project lead.
+  </Tab>
+  <Tab title="Domain Experts">
+    Domain experts provide subject matter accuracy review throughout the design and authoring process. They validate that scenarios reflect real-world conditions, that decision options are plausible, and that outcomes are appropriately calibrated to the domain. Domain experts do not own design decisions, but their accuracy findings are binding: a simulation cannot advance past content review with open accuracy defects.
+
+    **Key responsibilities:**
+    - Review scenario content for subject matter accuracy at designated checkpoints
+    - Provide specific, actionable correction notes rather than general feedback
+    - Confirm accuracy sign-off before a simulation advances to QA
+    - Participate in requirements intake sessions when domain complexity is high
+
+    <Tip>
+      Domain experts are most effective when they engage early in the design process, during requirements review and scenario outline approval. Late-stage accuracy revisions are significantly more costly than early corrections.
+    </Tip>
+  </Tab>
+  <Tab title="QA Reviewers">
+    QA reviewers are responsible for verifying that completed simulations meet functional, behavioral, and standards-compliance requirements before they are submitted for final acceptance. QA review is a formal gate, not an advisory process: simulations that do not pass QA do not advance regardless of other approvals.
+
+    **Key responsibilities:**
+    - Execute the defined QA review checklist against each simulation
+    - Classify and document defects using the project's defect classification framework
+    - Verify that all previously identified defects have been correctly resolved before re-review
+    - Escalate severity disputes or review blockers to the project lead promptly
+
+    **Decision rights:** QA reviewers have authority to block simulation advancement for any open severity-one or severity-two defect. Severity classification disputes are escalated to the project lead for final determination.
+  </Tab>
+  <Tab title="Project Management">
+    Project leads and coordinators are responsible for scope governance, milestone tracking, stakeholder communication, and escalation management. They do not make design or content decisions, but they own the process that ensures decisions are made by the right people at the right time.
+
+    **Key responsibilities:**
+    - Maintain the project schedule, milestone definitions, and progress reporting
+    - Facilitate scope change requests and ensure they go through the defined approval process
+    - Communicate project status to organizational stakeholders
+    - Resolve escalated disputes, particularly around scope boundaries and review outcomes
+    - Ensure the knowledge base remains current as standards and processes evolve
+
+    **Decision rights:** Project leads have final authority over scope boundary interpretations and escalated review disputes. Significant scope changes require additional stakeholder approval as defined in the project governance documentation.
+  </Tab>
+</Tabs>
+
+## Success Criteria and Definition of Done
+
+A simulation is not complete when it has been authored — it is complete when it meets every criterion in the MCMG definition of done. This definition applies universally to all simulations produced under the project, regardless of type, size, or subject matter.
+
+<Steps>
+  <Step title="Requirements traceability confirmed">
+    Every scenario and interaction in the simulation can be traced to a documented requirement or approved learning objective. The traceability matrix for the simulation has been completed and reviewed by the project lead.
+  </Step>
+  <Step title="Design standards compliance verified">
+    The simulation has been reviewed against the current version of the MCMG design standards, and no open standards violations remain. Any approved deviations are documented with rationale in the simulation's project record.
+  </Step>
+  <Step title="Domain accuracy sign-off obtained">
+    At least one qualified domain expert has reviewed all scenario content for subject matter accuracy and provided formal sign-off. All accuracy defects identified during that review have been resolved and re-confirmed.
+  </Step>
+  <Step title="QA review passed with no open defects">
+    The simulation has completed a full QA review cycle. No severity-one or severity-two defects remain open. All severity-three defects have either been resolved or have been formally accepted and documented as known limitations by the project lead.
+  </Step>
+  <Step title="Accessibility requirements met">
+    The simulation meets all applicable accessibility standards as defined in the MCMG accessibility guidelines. Accessibility review has been completed as part of QA or as a dedicated review pass, and all findings have been addressed.
+  </Step>
+  <Step title="Stakeholder acceptance received">
+    The designated stakeholder acceptance authority has reviewed the simulation against its stated objectives and provided formal written acceptance. Acceptance constitutes confirmation that the simulation meets its original requirements, not just that it passes technical review.
+  </Step>
+  <Step title="Handoff package complete">
+    The simulation's source files, assets, documentation, and traceability records have been organized and submitted to the project archive according to the handoff package specification. The simulation is ready for delivery or deployment by the appropriate downstream team.
+  </Step>
+</Steps>
+
+<Info>
+  The definition of done is versioned alongside the rest of the project standards. Always verify that you are working against the current version before beginning a review or sign-off activity. The version in effect at the time a simulation enters QA is the version that applies throughout that simulation's review cycle.
+</Info>
+
+## Organizational and Operational Context
+
+The MCMG project does not operate in isolation. It is part of a broader organizational effort to modernize and standardize how simulation-based training and assessment are developed and maintained. Understanding where MCMG fits within that larger picture helps you make better decisions about prioritization, scope, and communication.
+
+Simulations produced by MCMG feed into delivery pipelines, training programs, and operational readiness activities that are owned by other parts of the organization. This means the project's outputs have real downstream dependencies — delays, quality issues, or scope misalignments in MCMG production have visible consequences for the teams and programs that depend on this content.
+
+The project operates under a governance structure that connects MCMG's day-to-day decisions to broader organizational priorities. Major scope changes, standards revisions, and milestone adjustments are reviewed through that governance process to ensure alignment with organizational direction and resource availability.
+
+<CardGroup cols={2}>
+  <Card title="Get Started" icon="rocket" href="/getting-started">
+    New to the project? Start here for a guided orientation to the knowledge base, role-specific entry points, and navigation tips.
+  </Card>
+  <Card title="Building Scenarios" icon="pen-to-square" href="/guides/building-scenarios">
+    Begin designing simulations with the full authoring workflow, from objective definition through entity design and parameter configuration.
+  </Card>
+  <Card title="Design Standards" icon="ruler-combined" href="/standards/naming-conventions">
+    The authoritative reference for naming, documentation, and versioning standards that all MCMG simulation artifacts must satisfy.
+  </Card>
+  <Card title="Review Process" icon="circle-check" href="/standards/review-process">
+    Everything you need to conduct or participate in the formal review and approval process, including stage checklists and escalation paths.
+  </Card>
+</CardGroup>

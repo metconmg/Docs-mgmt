@@ -1,13 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "MCMG Simulation Knowledge Base",
+  "projectType": "general",
+  "projectName": "MCMG Simulation Knowledge Base",
+  "projectDescription": "A canonical reference knowledge base for the design, development, and operation of large-scale simulation projects.",
   "theme": "maple",
-  "colors": {
-    "primary": "#ef7025",
-    "light": "#eec9bc",
-    "dark": "#4fa1ab"
-  },
-  "favicon": "/favicon.svg",
+  "primaryColor": "#ef7025",
+  "lightColor": "#eec9bc",
+  "darkColor": "#4fa1ab",
   "navigation": {
     "tabs": [
       {
@@ -63,10 +61,13 @@
       }
     ]
   },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/metconmg/docs-mgmt"
-    }
-  }
+  "keyFeatures": [
+    "Canonical definitions and terminology for the simulation project",
+    "Architecture and design standards for large-scale simulations",
+    "Step-by-step guides for building and running simulation scenarios",
+    "Reference documentation for configuration, parameters, and outputs",
+    "Versioning and review standards for simulation artifacts",
+    "Glossary of domain-specific terms and concepts"
+  ],
+  "publicApiSurface": []
 }

@@ -1,0 +1,204 @@
+---
+title: "Set Up Your MCMG Simulation Development Environment"
+sidebarTitle: "Environment Setup"
+description: "Configure your local development environment for MCMG simulation work, including required tools, project access, directory structure, and initial validation."
+---
+
+Setting up a consistent, well-configured development environment is the foundation of productive simulation work. Before you write your first scenario or execute your first run, you need to confirm that your machine meets the hardware and software requirements, that you have access to the necessary repositories and documentation, and that the directory layout you work within matches the conventions the rest of the team uses. This guide walks you through every step of that process and helps you diagnose the most common setup problems before they slow you down.
+
+## Prerequisites
+
+### Hardware Recommendations
+
+Large-scale simulation work is computationally demanding. The following table describes the minimum and recommended hardware configurations for local development.
+
+| Resource | Minimum | Recommended |
+|---|---|---|
+| CPU | 4-core, 2.5 GHz | 8-core or higher, 3.0 GHz+ |
+| RAM | 16 GB | 32 GB or more |
+| Disk space | 50 GB free | 200 GB free (SSD preferred) |
+| Network | Stable broadband | Low-latency wired connection |
+
+<Note>
+Minimum specifications are suitable for running small-scale validation scenarios only. Full-scale batch runs and parameter sweeps require at least the recommended configuration to complete in a reasonable time.
+</Note>
+
+### Operating System Requirements
+
+MCMG simulation tooling is tested and supported on the following operating systems:
+
+- **Linux** (any major distribution with a kernel version from the last three years) — this is the primary supported platform and the one used in all CI and production environments.
+- **macOS** (recent releases on both Intel and Apple Silicon) — suitable for local development and small-scale runs.
+- **Windows** — supported via the Windows Subsystem for Linux (WSL 2). Native Windows execution is not supported.
+
+<Warning>
+If you are on Windows, ensure you are running WSL 2 and not WSL 1. WSL 1 has known filesystem performance problems that will cause simulation runs to behave unpredictably.
+</Warning>
+
+### Required Tooling
+
+Install and verify each of the following before proceeding:
+
+| Tool | Purpose |
+|---|---|
+| Git | Version control for scenario configs and project source |
+| A container runtime (e.g., Docker-compatible) | Running isolated simulation environments |
+| Python 3 (recent stable release) | Tooling scripts, validation utilities |
+| A YAML-aware editor or IDE | Authoring scenario configuration files |
+| The MCMG CLI | Primary interface for launching and managing simulations |
+
+<Tip>
+Use your operating system's package manager to install the runtime dependencies, then follow your team's internal guide to install the MCMG CLI from the internal artifact registry. Pin the CLI version in your project notes so you can reproduce behavior after updates.
+</Tip>
+
+---
+
+## Accessing Project Repositories and Documentation
+
+Access to MCMG simulation resources is controlled through your organization's identity and access management system. Before you can clone repositories or read internal documentation, you need appropriate permissions.
+
+<Steps>
+  <Step title="Request access to the simulation project group">
+    Contact your team lead or the project administrator to be added to the relevant access group. You will need read access to the scenario repository and write access to your team's working branch namespace.
+  </Step>
+
+  <Step title="Configure your Git credentials">
+    Follow your organization's standard credential setup for Git. This typically involves generating an SSH key pair and registering the public key with the internal Git host.
+
+    ```bash
+    # Generate an SSH key (if you don't already have one)
+    ssh-keygen -t ed25519 -C "your_identifier"
+
+    # Display the public key to copy into the Git host
+    cat ~/.ssh/id_ed25519.pub
+    ```
+  </Step>
+
+  <Step title="Clone the primary scenario repository">
+    Once your credentials are configured, clone the repository to your local machine.
+
+    ```bash
+    git clone git@internal-git-host:mcmg/scenarios.git
+    cd scenarios
+    ```
+  </Step>
+
+  <Step title="Clone supporting repositories">
+    Depending on your role, you may also need the entity library repository and the tooling scripts repository. Clone each into a sibling directory of the scenarios repository to match the expected relative paths used by the tooling.
+
+    ```bash
+    git clone git@internal-git-host:mcmg/entity-library.git
+    git clone git@internal-git-host:mcmg/tooling.git
+    ```
+  </Step>
+
+  <Step title="Verify access to internal documentation">
+    Open the internal knowledge base URL provided in your onboarding materials and confirm you can navigate to the MCMG section. Bookmark the pages for scenario authoring conventions and entity specification references — you will return to them frequently.
+  </Step>
+</Steps>
+
+---
+
+## Directory Structure Overview
+
+The MCMG project uses a defined directory layout that all tooling depends on. Understanding this structure before you start prevents the most common "file not found" errors.
+
+```
+mcmg/
+├── scenarios/                  # Scenario configuration files (your primary workspace)
+│   ├── <scenario-name>/
+│   │   ├── scenario.yaml       # Root scenario definition
+│   │   ├── entities/           # Entity type definitions for this scenario
+│   │   ├── events/             # Event sequence and trigger definitions
+│   │   └── params/             # Parameter sets and boundary conditions
+│   └── _shared/                # Shared scenario fragments reused across scenarios
+│
+├── entity-library/             # Canonical entity archetype definitions
+│   ├── archetypes/             # Reusable base entity templates
+│   └── behaviors/              # Behavior modules referenced by entities
+│
+├── tooling/                    # CLI tooling, validation scripts, and helpers
+│   ├── bin/                    # Executable scripts (should be on your PATH)
+│   ├── lib/                    # Shared Python library code used by tooling
+│   └── config/                 # Tooling configuration and environment defaults
+│
+└── outputs/                    # Simulation run outputs (generated, not committed)
+    ├── <run-id>/
+    │   ├── logs/               # Execution logs
+    │   ├── metrics/            # Output metrics files
+    │   └── snapshots/          # State snapshots (if enabled)
+```
+
+<Note>
+The `outputs/` directory is excluded from version control via `.gitignore`. Never commit run outputs to the repository. If you need to share a specific run's output with a colleague, use the internal object storage system.
+</Note>
+
+### Key conventions
+
+- **Scenario directories use kebab-case names** that are meaningful and unique across the project. Avoid generic names like `test` or `scenario1`.
+- **Shared fragments** in `_shared/` are referenced by relative path from scenario configs. Do not duplicate shared definitions — update the shared file and let all scenarios inherit the change.
+- **The `outputs/` path** can be redirected to a different volume via the tooling configuration file if your system disk is space-constrained.
+
+---
+
+## Initial Validation
+
+After completing the setup steps above, run the environment validation script to confirm that everything is correctly configured before you start working.
+
+<Steps>
+  <Step title="Add the tooling bin directory to your PATH">
+    ```bash
+    export PATH="$PATH:/path/to/mcmg/tooling/bin"
+    ```
+
+    Add this line to your shell profile (`.bashrc`, `.zshrc`, or equivalent) so it persists across sessions.
+  </Step>
+
+  <Step title="Run the environment check command">
+    ```bash
+    mcmg env check
+    ```
+
+    This command inspects your environment and reports the status of each requirement. A passing output looks like the following:
+
+    ```
+    [OK] Git          found, credentials configured
+    [OK] Container runtime  found, daemon reachable
+    [OK] Python 3     found, version acceptable
+    [OK] MCMG CLI     version pinned and current
+    [OK] scenarios/   found, HEAD at main
+    [OK] entity-library/  found, HEAD at main
+    [OK] tooling/     found, PATH entry detected
+    [WARN] outputs/   directory does not exist — will be created on first run
+    ```
+  </Step>
+
+  <Step title="Run a smoke-test scenario">
+    Execute the built-in smoke-test scenario, which runs a minimal simulation designed to exercise all core subsystems in under a minute:
+
+    ```bash
+    mcmg run --scenario _smoke-test --mode single
+    ```
+
+    A successful smoke test prints a summary at the end with no `ERROR` lines in the log output. Check the `outputs/_smoke-test-<run-id>/` directory to confirm that output files were produced.
+  </Step>
+</Steps>
+
+---
+
+## Common Setup Problems and Resolutions
+
+Even with careful setup, a few problems come up repeatedly. The table below covers the most frequent ones.
+
+| Symptom | Likely Cause | Resolution |
+|---|---|---|
+| `mcmg: command not found` | Tooling `bin/` is not on your PATH | Add the export line to your shell profile and restart your terminal |
+| SSH clone fails with "Permission denied" | SSH key not registered with the Git host | Copy your public key and add it in the Git host's SSH key settings |
+| `env check` reports container daemon not reachable | Container runtime is not running | Start the container daemon service for your platform |
+| Smoke test fails immediately with schema error | CLI version mismatch with scenario schema | Pull the latest changes in `tooling/` and re-run `mcmg env check` |
+| `outputs/` fills disk rapidly | Default output path is on a small system disk | Redirect `outputs/` to a larger volume in the tooling config file |
+| WSL 2 file operations are very slow | Files are stored on the Windows filesystem (under `/mnt/c`) | Move your cloned repositories into the WSL 2 native filesystem (e.g., `~/mcmg/`) |
+
+<Tip>
+If you encounter a problem not listed here, check the team's internal discussion channel for the simulation project. Most environment issues have already been solved by a colleague and documented in pinned messages or a shared troubleshooting note.
+</Tip>

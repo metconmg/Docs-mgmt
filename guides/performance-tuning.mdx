@@ -1,0 +1,291 @@
+---
+title: "Tune MCMG Simulation Performance for Large-Scale Runs"
+sidebarTitle: "Performance Tuning"
+description: "Identify and resolve performance bottlenecks in MCMG simulation runs, from entity count scaling to event throughput and output I/O optimization."
+---
+
+A simulation that produces correct results slowly is still useful — but a simulation that cannot complete a full-scale run within your project's time and resource budget is a practical blocker. Performance tuning in MCMG is not about squeezing every possible microsecond from the engine; it is about understanding where time and memory are going, eliminating unnecessary work, and making deliberate trade-offs between fidelity and throughput. This guide walks you through the full tuning process, from establishing a performance baseline to validating improvements.
+
+## Common Performance Bottlenecks
+
+Before you profile anything, it helps to know which problems are most frequently responsible for slow or resource-intensive simulation runs. The table below summarizes the most common bottlenecks and the symptoms that indicate each one.
+
+| Bottleneck | Typical symptom |
+|---|---|
+| Excessive entity count | Memory usage grows with population; per-step time scales worse than linearly |
+| Unnecessary entity state fields | High baseline memory per entity even at small population |
+| Overbroadcast events | Event processing time dominates per-step time; CPU saturated |
+| Frequent full-state snapshots | I/O wait time spikes at regular intervals; output directory grows rapidly |
+| Unbounded metric output | Output files grow to unexpected sizes; write throughput becomes limiting |
+| Missing parallelism | CPU utilization stays low even during computationally heavy steps |
+| Unoptimized proximity queries | Per-step time scales as O(n²) with entity count in spatially dense scenarios |
+
+---
+
+## Profiling a Simulation Run
+
+You cannot tune what you have not measured. Before making any changes, run the simulation with profiling enabled to establish a baseline.
+
+<Steps>
+  <Step title="Enable profiling on a representative run">
+    Run your scenario at the scale you are trying to optimize — not a reduced sanity scale — with profiling enabled:
+
+    ```bash
+    mcmg run \
+      --scenario my-scenario-name \
+      --mode single \
+      --profile \
+      --profile-output outputs/profile-baseline.json
+    ```
+
+    The `--profile` flag adds per-step timing and per-subsystem CPU and memory measurements to the run output.
+  </Step>
+
+  <Step title="Review the profiling report">
+    ```bash
+    mcmg profile report --input outputs/profile-baseline.json
+    ```
+
+    The report breaks down time spent in each subsystem per step:
+
+    ```
+    Subsystem breakdown (average per step, 3600 steps):
+      Entity update:       12.4 ms   (41%)
+      Event processing:    14.7 ms   (49%)
+      State snapshot:       0.1 ms    (0%)
+      Metric collection:    1.8 ms    (6%)
+      Output write:         1.2 ms    (4%)
+
+    Memory (peak):
+      Entity heap:         1.24 GB
+      Event queue:          88 MB
+      Output buffer:        12 MB
+
+    Total wall-clock time: 1h 54m
+    ```
+  </Step>
+
+  <Step title="Identify the dominant cost">
+    Focus your tuning effort on the subsystem that consumes the largest share of per-step time. Optimizing a subsystem that accounts for 4% of runtime will not move the needle meaningfully even if you halve its cost.
+  </Step>
+
+  <Step title="Record your baseline">
+    Note the total wall-clock time, peak memory, and the per-subsystem breakdown before you make any changes. You will compare every tuning change against this baseline to confirm improvement.
+  </Step>
+</Steps>
+
+---
+
+## Entity Count Optimization
+
+The entity heap is often the single largest consumer of memory in a large-scale run. Keeping entity count as low as your scenario objectives permit is the highest-leverage optimization available.
+
+### Reducing unnecessary entities
+
+Ask yourself whether every entity instance in your scenario actively contributes to the outputs you care about. Common sources of unnecessary entities include:
+
+- **Background population entities** that exist only to provide a realistic density but are never participants in the events you are measuring. Consider replacing these with a statistical background model rather than explicit instances.
+- **Depleted entities** that have reached a terminal state but remain in the simulation as inactive instances. Confirm that your scenario configuration removes depleted entities from the active pool rather than retaining them.
+- **Redundant sub-entities** that model fine-grained internal structure you do not need at the current level of analysis. Collapse these into aggregate state fields on the parent entity.
+
+### Using archetypes to reduce per-entity overhead
+
+Archetypes allow many entities to share immutable structural data — behavior references, static configuration, and read-only parameters — rather than each instance carrying its own copy.
+
+<Steps>
+  <Step title="Identify shared immutable data">
+    Review your entity definitions and separate fields that are the same for every instance of a type (static configuration) from fields that vary per instance (runtime state). Only the runtime state needs to be per-instance.
+  </Step>
+
+  <Step title="Move static data to an archetype">
+    Place all static configuration into a shared archetype file in `entity-library/archetypes/`. Reference it from your entity definition with the `archetype` key. The simulation engine loads archetype data once and shares it across all instances.
+  </Step>
+
+  <Step title="Validate the refactor">
+    Run schema and logic validation after moving data to an archetype. Then run an integration test to confirm that the refactored scenario produces the same outputs as the original.
+  </Step>
+</Steps>
+
+<Tip>
+A 20% reduction in per-entity memory footprint translates directly into a 20% increase in the entity count you can run within a given memory budget. Archetype refactoring is worth doing early.
+</Tip>
+
+---
+
+## Event Throughput Optimization
+
+Event processing is typically the most CPU-intensive subsystem. Two problems dominate: events being broadcast to far more entities than need to receive them, and events being fired far more frequently than the scenario logic actually requires.
+
+### Batching events
+
+If your scenario fires many small events of the same type within a single time step, consolidate them into a single batched event where possible. Batch events reduce the per-event overhead of trigger evaluation, routing, and effect application.
+
+In your event definition, set the batching policy:
+
+```yaml
+event:
+  name: energy-decay
+  trigger:
+    type: time-step
+  batching:
+    enabled: true
+    max_batch_size: 1000    # Process up to 1000 entity updates in a single dispatch
+```
+
+### Reducing unnecessary broadcasts
+
+An event broadcast to all entities in the simulation is significantly more expensive than an event targeted to a specific entity or a spatially bounded set of entities. Audit your event definitions for any that use unrestricted broadcast triggers.
+
+| Trigger pattern | Cost | When appropriate |
+|---|---|---|
+| Broadcast to all entities | O(n) per event | Only for true global state changes |
+| Broadcast within spatial radius | O(k) where k is local density | Interaction and proximity events |
+| Targeted to specific entity type | O(m) where m is type count | Type-specific lifecycle events |
+| Targeted to single entity | O(1) | Response events, acknowledgements |
+
+Replace broadcast triggers with proximity or type-targeted triggers wherever your scenario logic permits.
+
+### Reducing event frequency
+
+Review any `time-step` triggered events and ask whether they need to fire on every step. Many state update events can fire every N steps without meaningfully affecting simulation accuracy.
+
+```yaml
+event:
+  name: slow-state-update
+  trigger:
+    type: time-step
+    interval: 10    # Fire every 10 steps instead of every step
+```
+
+---
+
+## State Management Optimization
+
+### Minimizing state snapshot frequency
+
+Full-state snapshots — which serialize the complete state of every entity to disk — are expensive both in CPU time (serialization) and in I/O time (writing). Unless your scenario objective requires reconstructing the full state at arbitrary points in time, disable snapshots or reduce their frequency significantly.
+
+```yaml
+outputs:
+  snapshots:
+    enabled: true
+    interval: 500    # Snapshot every 500 steps, not every step
+    fields:          # Only snapshot the fields you actually need
+      - energy
+      - status
+```
+
+<Warning>
+Enabling snapshots with no `interval` setting causes a snapshot to be written every single step. For a 3,600-step run with 10,000 entities, this can generate tens of gigabytes of snapshot data and slow the run by an order of magnitude.
+</Warning>
+
+### Reducing state field footprint
+
+Go through your entity state field definitions and apply these checks:
+
+| Optimization | How to apply |
+|---|---|
+| Downcast numeric types | Use integer instead of float where fractional precision is not needed |
+| Reduce enum cardinality | Consolidate state values that the simulation never actually distinguishes between |
+| Remove unused fields | Delete any field that is never read by an event effect or a metric collector |
+| Use reference types for shared objects | Store a reference to a shared config object instead of copying its values per entity |
+
+---
+
+## Output I/O Optimization
+
+### Buffering
+
+By default, MCMG writes metric data to disk at the end of every step. For very high-frequency metric collection, this can cause the output write subsystem to become a bottleneck. Increase the write buffer size to reduce flush frequency:
+
+```yaml
+outputs:
+  io:
+    buffer_size_mb: 64    # Default is 8 MB; increase for high-throughput scenarios
+    flush_interval: 100   # Flush to disk every 100 steps instead of every step
+```
+
+### Compression
+
+Enable output compression for long runs that produce large metric files. Compression adds a small CPU overhead but can reduce output file size by 60–80% for typical metric data, which reduces I/O wait time on buffer flushes.
+
+```yaml
+outputs:
+  io:
+    compress: true
+    compression_format: zstd    # Fast compression; good throughput-to-ratio balance
+```
+
+### Selective output
+
+Only collect the metrics your scenario objective actually requires. Every enabled metric collector adds CPU overhead during collection and I/O overhead during writing. Review your `outputs.metrics` list before each production run:
+
+```yaml
+outputs:
+  metrics:
+    - entity_count_by_type          # Keep: needed for objective
+    - event_rate_per_step           # Keep: needed for objective
+    # - state_distribution_summary  # Remove: not needed for this run
+    # - per_entity_state_trace      # Remove: very high volume, rarely needed
+```
+
+---
+
+## Parallel and Distributed Execution
+
+For scenarios where single-machine execution is insufficient, MCMG supports both thread-level parallelism within a single machine and distributed execution across multiple nodes.
+
+### Thread-level parallelism
+
+MCMG can parallelize entity updates across multiple CPU threads within a single run. Enable this in your run command:
+
+```bash
+mcmg run \
+  --scenario my-scenario-name \
+  --mode single \
+  --threads 8
+```
+
+Thread-level parallelism is most effective when entity updates are independent — that is, when entities do not need to read each other's state during the update phase. Scenarios with heavy cross-entity dependencies during updates will see limited gains from threading.
+
+### Distributed execution
+
+For batch and sweep runs, each individual run can be dispatched to a separate node in a compute cluster. Configure the distributed backend in your tooling configuration and then launch normally:
+
+```bash
+mcmg run \
+  --scenario my-scenario-name \
+  --mode sweep \
+  --sweep-param agent_initial_population \
+  --sweep-range 100:10000:500 \
+  --distributed
+```
+
+<Note>
+Distributed execution requires cluster access configured in your environment. Contact your infrastructure team to confirm that your account has the necessary permissions and that the target cluster has sufficient capacity for your sweep size before launching.
+</Note>
+
+---
+
+## Performance Budgets
+
+A performance budget defines the maximum acceptable wall-clock time and memory usage for a scenario run at a given scale. Establishing budgets before production runs — rather than after — gives you a clear pass/fail criterion for your tuning work.
+
+The following table provides general guidance on what constitutes acceptable performance for different scenario sizes. These are starting-point guidelines; calibrate them to your project's specific infrastructure and time constraints.
+
+| Scenario scale | Entity count | Steps | Acceptable wall-clock time | Acceptable peak memory |
+|---|---|---|---|---|
+| Small (sanity / unit test) | < 500 | < 500 | < 2 minutes | < 1 GB |
+| Medium (development validation) | 500–5,000 | 500–2,000 | < 20 minutes | < 8 GB |
+| Large (production single run) | 5,000–50,000 | 2,000–10,000 | < 4 hours | < 32 GB |
+| Extra-large (parameter sweep node) | 50,000+ | 10,000+ | < 12 hours per node | < 64 GB per node |
+
+<Tip>
+When a run exceeds its budget by more than 20%, treat it as a signal to profile and tune before scheduling additional runs. Overage that is ignored tends to compound: the same inefficiency affects every run in a batch or sweep.
+</Tip>
+
+If you have applied the optimizations in this guide and your run still exceeds its budget, the most productive next steps are:
+
+1. Re-examine the scenario scope — confirm that the entity count and time horizon are genuinely necessary for the objective.
+2. Check whether the scenario can be decomposed into smaller, faster sub-scenarios whose results are combined.
+3. Escalate to your team's simulation engineering lead to review the profiling report together.

@@ -1,0 +1,190 @@
+---
+title: "Simulation Configuration Reference"
+sidebarTitle: "Configuration"
+description: "Complete reference for MCMG simulation configuration files, covering scenario settings, engine options, logging, and output configuration."
+---
+
+Every MCMG simulation run is driven by a set of structured configuration files that control how the scenario is defined, how the engine behaves, what gets logged, and where outputs are written. Understanding these files and their relationships is the foundation for building reproducible, controllable simulations. This reference covers every major configuration section in detail, with field-level documentation and a complete working example you can adapt for your own scenarios.
+
+## Configuration File Overview
+
+MCMG separates configuration concerns across multiple files, each with a distinct role. You may combine them into a single file for small projects, but for larger simulations the separation keeps things maintainable.
+
+| File | Purpose |
+|---|---|
+| `scenario.yaml` | Defines the scenario identity, duration, seed, and fidelity level |
+| `engine.yaml` | Controls timestep, entity limits, and concurrency behaviour |
+| `logging.yaml` | Specifies log level, output path, rotation policy |
+| `output.yaml` | Configures where and how simulation outputs are written |
+
+All files use YAML syntax. Keys are case-sensitive and must match the names documented here exactly. MCMG loads these files at startup and validates every field before the simulation begins. Any unrecognised key produces a warning; any invalid value raises a fatal configuration error and halts the run.
+
+You can point the simulation at a directory containing all four files, or you can merge them under a single top-level file by nesting each section under the corresponding root key (`scenario`, `engine`, `logging`, `output`).
+
+---
+
+## Scenario Configuration
+
+The scenario section establishes the identity and fundamental constraints of your simulation run. These fields are written into every output file as provenance metadata, so it is important to fill them in accurately.
+
+<ParamField path="scenario.name" type="string" required>
+  A short, human-readable name for the scenario. Used in log headers, report titles, and output file prefixes. Must not contain path separators or control characters. Maximum 128 characters.
+</ParamField>
+
+<ParamField path="scenario.version" type="string" required>
+  A version label for this scenario definition. Use a consistent scheme across your project — a semantic version string or a date-based label both work well. The value is stored verbatim in output metadata.
+</ParamField>
+
+<ParamField path="scenario.description" type="string">
+  A longer free-text description of the scenario's purpose and assumptions. Supports multi-line YAML block scalars. This field is written to the summary report and is useful for audit trails.
+</ParamField>
+
+<ParamField path="scenario.seed" type="integer" required>
+  The pseudo-random number generator seed. Providing the same seed with the same configuration and software version guarantees bit-identical results across runs. Set to `0` to use a time-derived seed; any non-zero value produces a deterministic run.
+</ParamField>
+
+<ParamField path="scenario.duration" type="number" required>
+  The total simulated time the scenario should run, expressed in simulation time units (STUs). The engine halts naturally when the internal clock reaches this value. Must be greater than `0`.
+</ParamField>
+
+<ParamField path="scenario.fidelity" type="string" required>
+  The fidelity level at which entity behaviours and interactions are resolved. Accepted values are `low`, `medium`, and `high`. Higher fidelity increases accuracy but also increases computational cost. See the [Glossary](/reference/glossary) for a full definition of each level.
+</ParamField>
+
+---
+
+## Engine Configuration
+
+The engine section controls the core simulation loop — how time advances, how many entities the engine manages, and how work is distributed across available compute resources.
+
+<ParamField path="engine.timestep" type="number" required>
+  The fixed time increment (in STUs) by which the simulation clock advances on each tick. Smaller values increase temporal resolution but require more ticks to reach the target duration. Must be greater than `0` and no larger than `scenario.duration`. A common starting point is `0.1`.
+</ParamField>
+
+<ParamField path="engine.max_entities" type="integer" default="10000">
+  The maximum number of entities that may exist simultaneously. When this limit is reached, entity-creation events are queued until an existing entity is destroyed. Increase this value if your scenario requires very large populations; be aware of the corresponding memory impact.
+</ParamField>
+
+<ParamField path="engine.concurrency" type="object">
+  A nested object controlling parallel execution behaviour.
+
+  - **`engine.concurrency.workers`** (`integer`, default `1`): Number of worker threads used to process entity updates in parallel. Set to `0` to use one thread per available logical CPU core. Values greater than the available core count are accepted but yield no additional throughput.
+  - **`engine.concurrency.mode`** (`string`, default `"cooperative"`): Scheduling model. `"cooperative"` allows workers to yield voluntarily; `"preemptive"` enforces time-sliced scheduling. Use `"cooperative"` unless you have entities with long-running synchronous behaviour.
+  - **`engine.concurrency.lock_timeout_ms`** (`integer`, default `500`): Maximum time in milliseconds a worker will wait to acquire a shared resource lock before raising a deadlock warning. Increase this value only if your entities legitimately hold locks for extended periods.
+</ParamField>
+
+<ParamField path="engine.event_queue_capacity" type="integer" default="100000">
+  The maximum number of events that may sit in the event queue at one time. If the queue reaches capacity, new events are dropped and a warning is emitted. Raise this limit for scenarios that produce very high event volumes in short bursts.
+</ParamField>
+
+<ParamField path="engine.deterministic_ordering" type="boolean" default="true">
+  When `true`, the engine resolves ties in event scheduling (same timestamp, same priority) using a deterministic secondary sort on entity ID. Disable this only if absolute throughput matters more than reproducibility.
+</ParamField>
+
+---
+
+## Logging Configuration
+
+The logging section controls what the simulation records about its own operation — distinct from the simulation outputs (event logs, snapshots) that capture the state of the modelled world.
+
+<ParamField path="logging.level" type="string" default="info">
+  Minimum severity level to record. Accepted values in ascending severity order: `debug`, `info`, `warn`, `error`, `fatal`. Setting `debug` produces verbose output useful during development; `warn` or `error` is recommended for large production runs to reduce I/O overhead.
+</ParamField>
+
+<ParamField path="logging.output_path" type="string" default="./logs/simulation.log">
+  Filesystem path for the primary log file. Relative paths are resolved from the working directory at launch. The parent directory is created automatically if it does not exist.
+</ParamField>
+
+<ParamField path="logging.structured" type="boolean" default="false">
+  When `true`, log records are written as JSON objects (one per line), making them easy to ingest into log aggregation systems. When `false`, records use a human-readable plain-text format.
+</ParamField>
+
+<ParamField path="logging.rotation" type="object">
+  Controls automatic log file rotation to prevent unbounded file growth.
+
+  - **`logging.rotation.enabled`** (`boolean`, default `true`): Whether rotation is active.
+  - **`logging.rotation.max_size_mb`** (`integer`, default `100`): Rotate when the current log file reaches this size in megabytes.
+  - **`logging.rotation.max_files`** (`integer`, default `5`): Number of rotated files to keep. Older files are deleted automatically once the limit is reached.
+  - **`logging.rotation.compress`** (`boolean`, default `true`): Compress rotated files using gzip to reduce disk usage.
+</ParamField>
+
+---
+
+## Output Configuration
+
+The output section determines where simulation results are written and in what formats. These outputs are the primary artefacts you analyse after a run.
+
+<ParamField path="output.directory" type="string" default="./output">
+  Root directory for all output files. The engine creates subdirectories beneath this path for each output type. Relative paths are resolved from the working directory at launch.
+</ParamField>
+
+<ParamField path="output.formats" type="array" default='["jsonl", "csv"]'>
+  List of formats in which event logs and state snapshots are written. Supported values are `jsonl`, `csv`, and `parquet`. You may list multiple formats; the engine writes one file per format per output type. Using `parquet` requires the optional analytics extension to be installed.
+</ParamField>
+
+<ParamField path="output.snapshot_interval" type="number" default="10.0">
+  How often (in STUs) the engine writes a full state snapshot. A value of `0` disables snapshots entirely. More frequent snapshots improve post-run replay fidelity at the cost of additional disk I/O and storage.
+</ParamField>
+
+<ParamField path="output.include_entity_detail" type="boolean" default="true">
+  When `true`, each snapshot record includes the full attribute set of every entity. Set to `false` to write only aggregate counts and summary statistics, which significantly reduces output volume for large populations.
+</ParamField>
+
+<ParamField path="output.summary_report" type="object">
+  Options for the end-of-run summary report.
+
+  - **`output.summary_report.enabled`** (`boolean`, default `true`): Whether to produce a summary report.
+  - **`output.summary_report.format`** (`string`, default `"json"`): Report format. Accepted values: `json`, `yaml`, `text`.
+  - **`output.summary_report.filename`** (`string`, default `"summary_report"`): Base filename without extension; the format extension is appended automatically.
+</ParamField>
+
+---
+
+## Complete Example Configuration
+
+The following single-file example merges all four sections. You can split it into separate files by removing the top-level keys and placing each block in its own `<section>.yaml` file.
+
+```yaml
+scenario:
+  name: "baseline-urban-grid-v2"
+  version: "2.4.0"
+  description: |
+    Baseline scenario for the urban grid model.
+    Represents a standard weekday morning peak
+    with default population density and no interventions.
+  seed: 20240815
+  duration: 480.0        # 480 STUs = 8 simulated hours
+  fidelity: medium
+
+engine:
+  timestep: 0.1
+  max_entities: 25000
+  concurrency:
+    workers: 4
+    mode: cooperative
+    lock_timeout_ms: 500
+  event_queue_capacity: 200000
+  deterministic_ordering: true
+
+logging:
+  level: info
+  output_path: ./logs/simulation.log
+  structured: false
+  rotation:
+    enabled: true
+    max_size_mb: 100
+    max_files: 5
+    compress: true
+
+output:
+  directory: ./output/baseline-urban-grid-v2
+  formats:
+    - jsonl
+    - csv
+  snapshot_interval: 20.0
+  include_entity_detail: true
+  summary_report:
+    enabled: true
+    format: json
+    filename: summary_report
+```

@@ -1,0 +1,141 @@
+---
+title: "Time Management and Event Scheduling in Simulations"
+sidebarTitle: "Time & Events"
+description: "Discover how MCMG manages simulation time, schedules events, handles concurrency, and ensures deterministic replay across large-scale runs."
+---
+
+Time is the most fundamental dimension of any simulation, and the way MCMG manages it shapes every other aspect of how your scenarios execute. Whether you are scheduling a one-time trigger, reasoning about concurrent events at the same timestamp, or designing a distributed run that must remain reproducible across thousands of replications, a clear understanding of the time and event model will guide you toward correct, efficient, and trustworthy results.
+
+## Simulation Clock vs. Wall-Clock Time
+
+MCMG maintains two entirely separate concepts of time that you must never conflate.
+
+| Concept | Definition | Controlled By | Unit |
+|---|---|---|---|
+| **Simulation clock** | The logical time within the modeled world | The engine's scheduler | Simulation time units (configurable) |
+| **Wall-clock time** | The actual elapsed real-world time during execution | The host operating environment | Seconds |
+
+The simulation clock has no fixed relationship to wall-clock time. A ten-hour simulated scenario might complete in two minutes of wall-clock time at low fidelity, or take several hours at high fidelity with many entities. Conversely, you can pause execution, inspect state, restart, and the simulation clock resumes exactly where it left off — wall-clock time passed, but simulation time did not.
+
+Simulation time units are configured in the scenario and can represent seconds, minutes, hours, or any other logical unit. The engine works exclusively in these units internally. All event timestamps, behavior triggers, and output records use simulation time.
+
+<Tip>
+  Choose simulation time units that match the natural cadence of the events in your scenario. A logistics scenario where most events happen over days benefits from using minutes as the base unit. A fast-reaction scenario with microsecond-level interactions should use a finer unit. Mismatch between natural cadence and time unit causes either precision loss or needlessly large timestamp values in output.
+</Tip>
+
+## Discrete Event Scheduling
+
+MCMG uses a discrete-event execution model: the simulation clock does not tick continuously. Instead, it jumps forward from one event's timestamp to the next, skipping over intervals where nothing happens. This is what makes discrete-event simulation efficient for sparse systems — no compute is spent on "empty time."
+
+### The Event Queue
+
+All pending events are held in the event queue, sorted by timestamp and then by priority within a timestamp. The queue is a priority structure that always presents the earliest, highest-priority event at its front. The engine peeks at the front of the queue to determine the next simulation time, advances the clock to that time, then dequeues and dispatches all events at that timestamp before peeking again.
+
+<Info>
+  The event queue is an internal engine structure. You do not interact with it directly. You schedule events by calling the appropriate scheduling function from a behavior or scenario initialization block, and the engine inserts the event into the queue at the correct position automatically.
+</Info>
+
+### Priorities
+
+When multiple events share the same timestamp, priority determines their dispatch order. Priorities are integers; lower numbers are dispatched first. MCMG reserves a set of built-in priority levels for engine-internal events such as clock ticks and checkpoint triggers. Your scenario events fall into the general priority range.
+
+| Priority Range | Reserved For |
+|---|---|
+| 0–99 | Engine-internal events (clock advance, checkpoint, sync) |
+| 100–499 | High-priority scenario events (safety interlocks, termination conditions) |
+| 500–899 | Normal scenario events (most behaviors should use this range) |
+| 900–999 | Low-priority bookkeeping events (counters, deferred cleanup) |
+
+<Note>
+  Assigning every event in your scenario to the same priority level is a common mistake. It forces the engine to rely entirely on tie-breaking rules for ordering, which can make causal chains harder to reason about. Assign priorities intentionally based on which events should logically precede others within a timestep.
+</Note>
+
+### Timestep Granularity
+
+Even in a discrete-event model, you may configure a minimum timestep — the smallest interval between two events that the engine will treat as distinct. Events scheduled closer together than the minimum timestep are either collapsed to the same timestamp or rejected at validation, depending on your configuration. Setting a coarser minimum timestep reduces event queue depth and can significantly improve throughput for scenarios that generate very high event rates.
+
+## Event Types
+
+MCMG classifies events into three types based on their temporal structure. Each type is scheduled differently and processed differently by the engine.
+
+<CardGroup cols={3}>
+  <Card title="Instantaneous" icon="bolt">
+    Occurs at a single point in simulation time. The most common type. The event is dispatched once at its scheduled timestamp, its handlers execute, and it is removed from the queue. Examples: a message sent, a threshold crossed, a spawn or destroy action.
+  </Card>
+  <Card title="Duration-Based" icon="hourglass-half">
+    Represents a process that takes a span of simulation time to complete. MCMG models this as two instantaneous events: a start event and a completion event. The duration between them is the process time. Behaviors can react to the start, the completion, or both.
+  </Card>
+  <Card title="Conditional" icon="code-branch">
+    Scheduled to fire at a timestamp only if a specified condition evaluates to true at that time. If the condition is false when the engine reaches that timestamp, the event is silently discarded. Conditional events are useful for implementing timeout checks and retry logic without coupling trigger evaluation to behavior code.
+  </Card>
+</CardGroup>
+
+## Handling Concurrent Events
+
+Events are concurrent when they share the same simulation timestamp. The engine handles them sequentially within that timestamp, but the order matters — if event A and event B both modify the same entity state at time T, the one dispatched first determines the starting state for the other.
+
+MCMG resolves concurrency through a three-level ordering system applied within a single timestamp:
+
+<Steps>
+  <Step title="Priority ordering">
+    Events are sorted by their assigned priority integer. Lower numbers are dispatched first. This is the primary ordering mechanism and should handle most cases.
+  </Step>
+  <Step title="Type-based tie-breaking">
+    If two events have identical priority, their types are compared using a globally registered type ordering table. This table is defined once at platform level and applies consistently across all scenarios.
+  </Step>
+  <Step title="Source ID tie-breaking">
+    If priority and type are both identical, the engine uses the source entity's identifier as a final tiebreaker. Because identifiers are deterministic (assigned in spawn order), this produces a consistent ordering across all replications with the same scenario.
+  </Step>
+</Steps>
+
+<Warning>
+  If your scenario correctness depends on the relative ordering of two events that legitimately have the same timestamp, priority, and type, you have a design problem. Encode the ordering constraint explicitly by using priority levels or by having one event's handler schedule the second event, creating an explicit temporal dependency.
+</Warning>
+
+## Lookahead and Synchronization
+
+In distributed runs — where the simulation is partitioned across multiple engine workers — the engine must ensure that a worker does not advance simulation time past a point where it could receive an event from another worker that should have been processed earlier. This is the causality constraint.
+
+MCMG uses a conservative synchronization approach by default:
+
+- Each entity declares a **lookahead** value: the minimum time interval between an entity generating an event and any entity being affected by that event.
+- Workers broadcast their current minimum timestamp plus their lookahead to peers at each synchronization barrier.
+- A worker may advance time only up to the minimum of all received safe-advance timestamps.
+
+A well-chosen lookahead allows workers to run far ahead between synchronization barriers, maximizing throughput. A lookahead of zero forces synchronization at every timestep and eliminates parallelism entirely.
+
+<Accordion title="Optimistic synchronization (advanced)">
+  MCMG also supports optimistic synchronization for scenarios where causality violations are rare but lookahead is difficult to compute analytically. In optimistic mode, workers advance time freely and speculatively execute events. If a causality violation is detected — a message arrives with a timestamp earlier than the worker's current time — the worker rolls back to its last checkpoint and replays forward. Optimistic mode can outperform conservative mode in sparse interaction scenarios, but rollback overhead dominates in dense interaction scenarios. Measure before choosing.
+</Accordion>
+
+<Accordion title="Choosing a lookahead value">
+  The ideal lookahead is the shortest possible travel time for any event between any two entities in your scenario. For spatially distributed scenarios, this is often the minimum communication latency between adjacent zones. For purely logical scenarios, it may be the minimum processing delay you impose on all outbound events from a behavior. Never set lookahead to a value larger than the true minimum — doing so can cause workers to discard events they should have processed, silently corrupting results.
+</Accordion>
+
+## Determinism and Reproducibility
+
+Every MCMG run is fully reproducible given the same inputs and the same random seed. The time and event system is the primary mechanism through which determinism is maintained.
+
+- The simulation clock is monotonically non-decreasing and advances only through the engine's scheduler. No behavior can advance the clock directly.
+- The event queue ordering — priority, then type, then source ID — is deterministic and produces the same dispatch sequence for the same set of events regardless of when they were inserted into the queue.
+- All random draws within behaviors use a seeded random number generator managed by the engine. The seed is recorded in the run manifest. Behaviors must never use an external or unseeded random source.
+- In distributed runs, the synchronization protocol guarantees that all workers see events in the same logical order, regardless of which physical machine processed them.
+
+<CardGroup cols={2}>
+  <Card title="Run Manifest" icon="file-lines">
+    Every run produces a manifest recording the scenario version, parameter file hashes, engine version, and random seed. Store this manifest alongside your outputs. You need it to reproduce any run exactly.
+  </Card>
+  <Card title="Seed Management" icon="key">
+    Assign different seeds to different replications in a batch. Never reuse a seed across replications intended to be statistically independent. The run configuration accepts a seed list or a seed generation rule for batch runs.
+  </Card>
+  <Card title="Replay Mode" icon="rotate-left">
+    Replay mode re-executes a run from the dispatch log rather than re-running from scenario inputs. Use replay when you need to reproduce a specific run for debugging without consuming the original seed — the dispatch log encodes the event sequence directly.
+  </Card>
+  <Card title="Determinism Checks" icon="shield-check">
+    Run the same scenario twice with the same seed and compare output hashes. A mismatch indicates a non-determinism source — usually an unseeded random call, a system clock read, or a race condition in behavior logic. Resolve all determinism failures before treating any results as final.
+  </Card>
+</CardGroup>
+
+<Info>
+  Determinism checks are inexpensive and should be part of your standard validation workflow. Run them once after any change to behavior logic, event schemas, or engine configuration. Catching non-determinism early costs minutes; catching it after a large batch run costs days.
+</Info>

@@ -1,0 +1,182 @@
+---
+title: "Review and Approval Process for Simulation Work"
+sidebarTitle: "Review Process"
+description: "The MCMG review and approval workflow for simulation scenarios, entity designs, and parameter changes — from draft submission to final sign-off."
+---
+
+Every simulation artifact in the MCMG project — whether a new scenario, a revised entity definition, or an updated parameter set — must pass through a structured review and approval process before it is merged to `main` and used in production work. This process exists to catch errors early, ensure consistency with project standards, and create a clear record of who approved what and why. This page explains each review stage, what reviewers check, how to submit your work, and how to handle disagreements.
+
+## Review Stages Overview
+
+The MCMG review process has four sequential stages. An artifact advances to the next stage only after the current stage is complete. No stage may be skipped, even for urgent changes.
+
+<Steps>
+  <Step title="Self-Review">
+    The artifact's author reviews their own work against the documentation, naming, and versioning standards before submitting to anyone else. This stage is not optional — submitting without self-review wastes reviewer time and will result in the artifact being returned immediately.
+  </Step>
+  <Step title="Peer Review">
+    One or more colleagues who did not author the artifact review it for clarity, consistency, and adherence to project standards. Peer reviewers do not need to be domain experts — they review process compliance and general quality.
+  </Step>
+  <Step title="Domain Expert Review">
+    A subject-matter expert in the relevant simulation domain reviews the artifact for technical correctness. This reviewer evaluates whether the scenario objective, entity behaviors, assumptions, and constraints are scientifically and operationally sound.
+  </Step>
+  <Step title="Approval">
+    A designated approver — who may be the same person as the domain expert reviewer in some workflows — formally marks the artifact as approved, updates its `status` field to `approved`, and merges the release branch to `main`.
+  </Step>
+</Steps>
+
+---
+
+## What Reviewers Check at Each Stage
+
+### Self-Review
+
+Before submitting, you must verify that your artifact satisfies every item in the relevant documentation checklist (see the [Documentation Standards](/standards/documentation-standards) page). Additionally, confirm:
+
+<Accordion title="Self-Review Checklist">
+  - [ ] The artifact follows all naming conventions defined in the [Naming Conventions](/standards/naming-conventions) page
+  - [ ] The version number has been incremented correctly per the [Versioning](/standards/versioning) rules, and the increment type is justified
+  - [ ] A changelog entry is present for this version, with all required fields
+  - [ ] All cross-references (to other scenarios, entity types, and parameters) use registered names and are valid
+  - [ ] The artifact's `status` field is set to `draft`
+  - [ ] The feature branch is up to date with the target release branch (rebased or merged within the last 48 hours)
+  - [ ] No placeholder content, TODO comments, or development-only parameter values remain in the artifact
+  - [ ] All inline comments in parameter files explain the rationale, not just the value
+  - [ ] You have run the artifact through the local validation tooling and it passes without errors or warnings
+</Accordion>
+
+### Peer Review
+
+Peer reviewers focus on whether the artifact is coherent and complete — not on domain correctness. A peer reviewer should be able to evaluate these items without specialized knowledge of the simulation domain.
+
+<Accordion title="Peer Review Checklist">
+  - [ ] The artifact's naming follows all conventions without exception
+  - [ ] All required documentation fields are present and substantively filled (no vague or single-word entries)
+  - [ ] Assumptions are written as positive declarative sentences with rationale
+  - [ ] Constraints include explicit ranges, conditions, and units where applicable
+  - [ ] The changelog entry is complete and written in the required format
+  - [ ] The version increment type matches the nature of the changes described in the changelog
+  - [ ] Cross-references resolve correctly to existing, approved artifacts
+  - [ ] The artifact's scope list is specific enough to determine what is and is not included
+  - [ ] No anti-pattern names (as defined in the naming conventions) appear anywhere in the artifact
+  - [ ] The artifact's `status` field is still `draft` (it is not the peer reviewer's role to advance status)
+</Accordion>
+
+<Note>
+  Peer reviewers should leave comments on every checklist item they cannot mark as satisfied. A comment that says only "fix this" is not actionable. State what the issue is and, where possible, what a satisfactory resolution looks like.
+</Note>
+
+### Domain Expert Review
+
+Domain expert reviewers evaluate technical correctness and scientific soundness. They bring knowledge that peer reviewers do not have and are responsible for catching errors that would not be visible from a process-compliance perspective.
+
+<Accordion title="Domain Expert Review Checklist">
+  - [ ] The scenario objective is achievable and meaningful within the stated scope
+  - [ ] Assumptions are realistic and their stated rationale is defensible
+  - [ ] Constraints correctly bound the valid operating envelope of the scenario
+  - [ ] Entity type behaviors, as documented in behavior summaries, are consistent with how those entities actually behave in the domain
+  - [ ] Attribute values, defaults, and valid ranges are grounded in domain knowledge or cited reference data
+  - [ ] Known limitations are honestly stated and do not omit significant gaps in the model
+  - [ ] The scenario would produce meaningful, interpretable results if run as documented
+  - [ ] Parameter values are internally consistent (e.g., no parameter set implies physically impossible conditions)
+  - [ ] The scenario does not duplicate an existing approved artifact without clear differentiation
+  - [ ] The domain expert is satisfied that the artifact is ready for final approval
+</Accordion>
+
+### Approval
+
+The approver performs a final check that all prior review stages are complete and that no new issues were introduced in response to prior feedback.
+
+<Accordion title="Approval Checklist">
+  - [ ] Self-review, peer review, and domain expert review are all recorded as complete
+  - [ ] All comments from prior review stages have been resolved or explicitly closed by the reviewer who raised them
+  - [ ] No new changes have been introduced after the domain expert review that were not reviewed by the domain expert
+  - [ ] The artifact's `status` field is updated to `approved` in this merge commit
+  - [ ] The release branch is merged to `main` with a merge commit message that includes the artifact name, version, and a one-line summary of the changes
+  - [ ] The feature branch is deleted after merge
+</Accordion>
+
+---
+
+## How to Submit an Artifact for Review
+
+Follow these steps to move an artifact from self-review into the peer review stage.
+
+<Steps>
+  <Step title="Confirm Self-Review Is Complete">
+    Work through the self-review checklist and confirm every item. Do not open a review request if any item is unresolved.
+  </Step>
+  <Step title="Open a Pull Request">
+    Open a pull request from your feature branch to the appropriate release branch. The pull request title must include the artifact name and version: for example, `[SCENARIO] logistics_route_optimization_v2.1.0`. The pull request description must include the full changelog entry for this version.
+  </Step>
+  <Step title="Assign Peer Reviewers">
+    Assign at least one peer reviewer. Peer reviewers must not be co-authors of the artifact. You may assign up to two peer reviewers, but one approval is sufficient to advance to the domain expert review stage.
+  </Step>
+  <Step title="Notify the Domain Expert">
+    Notify the relevant domain expert that the artifact will be entering their queue after peer review. This is a courtesy notification, not a review request — do not ask the domain expert to begin reviewing until peer review is complete.
+  </Step>
+  <Step title="Monitor and Respond">
+    Check the pull request at least once per business day while it is in review. Respond to all review comments within the turnaround time windows defined below.
+  </Step>
+</Steps>
+
+<Tip>
+  Write your pull request description as if it will be read by someone who has never seen your artifact before. Assume no prior context. A well-written pull request description dramatically reduces the number of clarifying questions reviewers need to ask.
+</Tip>
+
+---
+
+## Turnaround Time Expectations
+
+These windows apply to all parties in the review process. They are expectations, not hard deadlines, but consistently missing them will be flagged in project health reviews.
+
+| Activity | Expected Window |
+|----------|-----------------|
+| Peer reviewer first response | 2 business days from assignment |
+| Domain expert first response | 3 business days from assignment |
+| Author response to review comments | 2 business days from comment posted |
+| Approver action after domain expert approval | 1 business day |
+| Hotfix peer review first response | 1 business day from assignment |
+| Hotfix domain expert review | 1 business day from assignment |
+
+<Info>
+  If a reviewer is unavailable within the expected window, contact the team lead to arrange a substitute. Do not advance the artifact to the next stage without a completed review at each stage — even if a reviewer is slow to respond.
+</Info>
+
+---
+
+## How to Respond to Review Feedback
+
+When a reviewer leaves comments on your artifact, follow these practices to resolve them efficiently and respectfully.
+
+- **Address every comment.** Do not close a comment without either making the requested change or explaining in a reply why you disagree. A comment with no response will block the review from advancing.
+- **Make targeted edits.** Change only what is needed to address the comment. Avoid making additional improvements in the same commit unless they are directly related — unrelated changes require re-review.
+- **Mark comments as resolved only after acting.** Mark a comment as resolved yourself only after you have made the change or posted a substantive reply. Do not mark comments resolved to clear your queue.
+- **Ask for clarification when needed.** If a comment is unclear, ask a specific clarifying question in the reply thread before attempting a change. Guessing at reviewer intent and making the wrong edit costs more time than asking.
+- **Request re-review explicitly.** After addressing a batch of comments, post a summary comment on the pull request listing what you changed and request that the reviewer re-check their items. Do not assume reviewers will notice your changes automatically.
+
+<Note>
+  A reviewer who marks a comment as resolved after your reply is satisfied with the response. A reviewer who reopens a resolved comment disagrees with how you addressed it. Treat a reopened comment as a new review comment and address it accordingly.
+</Note>
+
+---
+
+## Escalation Path When Reviewers Disagree
+
+Disagreements between authors and reviewers — or between two reviewers — are normal and should be resolved constructively. Use this escalation path in order.
+
+<Steps>
+  <Step title="Direct Discussion">
+    Post a detailed reply in the pull request thread explaining your position with specific references to project standards, prior decisions, or domain evidence. Give the other party at least two business days to respond.
+  </Step>
+  <Step title="Involve a Third Reviewer">
+    If the disagreement is unresolved after direct discussion, request a third opinion from another qualified reviewer. Both parties must agree on who the third reviewer is. The third reviewer's assessment is advisory, not binding.
+  </Step>
+  <Step title="Escalate to the Team Lead">
+    If direct discussion and a third reviewer have not resolved the disagreement, escalate to the team lead by tagging them in the pull request. The team lead reviews the thread, the artifact, and the standards — and makes a binding decision. Document the team lead's decision in the pull request thread before proceeding.
+  </Step>
+</Steps>
+
+<Warning>
+  Do not merge an artifact while a disagreement is unresolved. Do not use the escalation path as a first resort — it is reserved for genuine impasses. Attempts to bypass direct discussion and escalate immediately will be redirected back to direct discussion.
+</Warning>
